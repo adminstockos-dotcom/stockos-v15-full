@@ -1,84 +1,86 @@
 "use client";
+import { useState, useMemo } from "react";
+
+const BASE_PRICE = 300000;
+const BASE_MODULES = ["Dashboard","Inventario Maestro","Bodega B1 Unificada","Link Maestro Filtrable","WhatsApp Auto 7AM / 2PM","Caja y Facturación"];
+
+const EXTRA_MODULES = [
+  { id: "prov-abc", name: "Proveedores A/B/C", price: 50000, desc: "Unifica 3 Excels con origen" },
+  { id: "pedidos-divididos", name: "Pedidos Divididos", price: 60000, desc: "Detecta mix A+B+C" },
+  { id: "ganancia", name: "Cálculo Ganancia", price: 30000, desc: "40% mayor · 85% detal" },
+  { id: "disparo-wa", name: "Disparo Grupos WA", price: 40000, desc: "Catálogo 7AM y 2PM auto" },
+  { id: "fotos", name: "Fotos y Variantes", price: 30000, desc: "Tallas, colores, fotos" },
+  { id: "precios-mayor", name: "Precios Mayor/Detal", price: 35000, desc: "Lista por tipo cliente" },
+  { id: "pagos", name: "Pago Efect/Transf/CE", price: 35000, desc: "Contraentrega + transferencia" },
+  { id: "guias", name: "Guías Automáticas", price: 40000, desc: "Tracking y guía auto" },
+  { id: "compras", name: "Compras Proveedores", price: 50000, desc: "Órdenes A/B/C" },
+  { id: "reportes", name: "Reportes Rentabilidad", price: 45000, desc: "BI utilidad real" },
+  { id: "sucursales", name: "Sucursales", price: 60000, desc: "Multi-bodega B1/B2" },
+  { id: "barras", name: "Códigos Barras", price: 35000, desc: "Pistola y etiquetas" },
+  { id: "transferencias", name: "Transferencias", price: 35000, desc: "Entre bodegas" },
+  { id: "crm", name: "CRM Clientes", price: 45000, desc: "Mayorista vs Detal" },
+  { id: "ecommerce", name: "Link Maestro Pro", price: 70000, desc: "stockos.com/inv/..." },
+  { id: "usuarios", name: "Usuarios y Roles", price: 40000, desc: "Vendedores y permisos" },
+];
+
 export default function Home() {
-  const AZUL = "#0A2640";
-  const VERDE = "#1ECB6A";
+  const AZUL = "#0A2640"; const VERDE = "#1ECB6A";
+  const [demoOpen, setDemoOpen] = useState(false);
+  const [demoStep, setDemoStep] = useState<1|2|3|4>(1);
+  const [form, setForm] = useState({ nombre: "", email: "", whatsapp: "" });
+  const [selected, setSelected] = useState<string[]>(["prov-abc","pedidos-divididos","ganancia","disparo-wa"]);
+  const [generated, setGenerated] = useState<any>(null);
+  const [copied, setCopied] = useState(false);
+
+  const totalCOP = useMemo(() => {
+    const extra = selected.reduce((a,id)=> a + (EXTRA_MODULES.find(x=>x.id===id)?.price||0),0);
+    return BASE_PRICE + extra;
+  },[selected]);
+
+  const handleGenerate = () => {
+    const payload = { n: form.nombre, e: form.email, w: form.whatsapp, total: totalCOP, mods: selected, base: BASE_PRICE, ts: Date.now() };
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    const link = `${window.location.origin}${window.location.pathname}?c=${b64}`;
+    setGenerated({ link, payload });
+  };
+
+  const whatsappMsg = generated? `Hola STOCKOS, soy ${generated.payload.n}. Plan BASE $300.000 + extras = $${generated.payload.total.toLocaleString("es-CO")} COP. Mods: ${generated.payload.mods.join(", ")}. Email ${generated.payload.e}. Link: ${generated.link}` : "";
+
   return (
-    <div style={{fontFamily:'Inter, Arial', background:'#FFFFFF', color:'#1A1A1A'}}>
-      
-      {/* BLOQUE 1 - HERO */}
-      <header style={{maxWidth:1100, margin:'0 auto', padding:'15px 20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-        <img src="/logo-stockos.png" alt="STOCK OS" style={{height:32}}/>
-        <a href="/admin" style={{fontSize:12, color:'#888', textDecoration:'none'}}>Acceso Admin</a>
+    <div style={{fontFamily:'Inter, Arial', background:'#FFFFFF', color:AZUL, minHeight:'100vh'}}>
+      <header style={{position:'sticky', top:0, zIndex:40, background:'rgba(255,255,255,0.9)', backdropFilter:'blur(12px)', borderBottom:'1px solid rgba(0,0,0,0.06)', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'0 20px', height:72, maxWidth:1120, margin:'0 auto'}}>
+        <img src="/logo-stockos.png" alt="STOCKOS" style={{height:48}}/>
+        <a href="#oferta" style={{background:AZUL, color:'white', padding:'10px 20px', borderRadius:30, fontSize:13, fontWeight:700, textDecoration:'none'}}>Activar por $300k</a>
       </header>
-      <section style={{maxWidth:1100, margin:'0 auto', padding:'50px 20px', display:'flex', flexWrap:'wrap', alignItems:'center', gap:30}}>
+
+      <section style={{maxWidth:1120, margin:'0 auto', padding:'50px 20px', display:'flex', flexWrap:'wrap', gap:30, alignItems:'center'}}>
         <div style={{flex:'1 1 450px'}}>
-          <h1 style={{fontSize:42, lineHeight:'1.1', fontWeight:800, color:AZUL, margin:0}}>Automatización Total para que vendas más sin caos</h1>
-          <p style={{fontSize:18, color:'#444', marginTop:15, lineHeight:1.5}}>El sistema operativo para negocios que venden por WhatsApp, tienen mensajeros y se les pierde el inventario. Centraliza pedidos, plata y bodega en un solo lugar.</p>
-          <div style={{marginTop:25, display:'flex', gap:12, flexWrap:'wrap'}}>
-            <a href="#oferta" style={{background:VERDE, color:AZUL, padding:'14px 28px', borderRadius:30, fontWeight:800, textDecoration:'none'}}>VER DEMO EN 2 MIN</a>
-            <a href="#oferta" style={{border:`2px solid ${AZUL}`, color:AZUL, padding:'12px 26px', borderRadius:30, fontWeight:700, textDecoration:'none'}}>Probar por $22 USD</a>
+          <div style={{display:'inline-block', background:'#E6F8EE', color:'#0A8F4A', fontSize:11, fontWeight:700, padding:'6px 12px', borderRadius:20}}>CASO REAL: MÁXIMA IMPORTADORES</div>
+          <h1 style={{fontSize:40, lineHeight:1.1, fontWeight:800, margin:'15px 0 0'}}>Como Máxima Importadores pasó de 3 Excels caóticos a vender 200 pares diarios y contando con inventario maestro automático y cierre por WhatsApp</h1>
+          <p style={{fontSize:16, color:'#555', marginTop:15}}>STOCKOS unifica 3 proveedores, calcula ganancias y cierra ventas desde el link maestro en tus grupos de WhatsApp.</p>
+          <div style={{marginTop:25, display:'flex', gap:12}}>
+            <button onClick={()=>setDemoOpen(true)} style={{background:VERDE, color:AZUL, padding:'14px 28px', borderRadius:30, fontWeight:800, border:'none', cursor:'pointer'}}>VER DEMO EN 2 MIN</button>
+            <a href="#oferta" style={{border:`2px solid ${AZUL}`, color:AZUL, padding:'12px 26px', borderRadius:30, fontWeight:700, textDecoration:'none'}}>Activar por $300.000</a>
           </div>
         </div>
-        <div style={{flex:'1 1 350px', background:'#F8FAFC', borderRadius:20, padding:20, border:'1px solid #E2E8F0', textAlign:'center'}}>
-          <p style={{fontSize:12, color:'#888', textTransform:'uppercase', letterSpacing:1}}>Pedido WhatsApp → STOCKOS</p>
-          <div style={{background:'white', borderRadius:12, padding:15, marginTop:10, boxShadow:'0 4px 12px rgba(0,0,0,0.08)', textAlign:'left'}}>
-            <div style={{fontSize:13}}>🟢 <b>Nuevo pedido #1092</b></div>
-            <div style={{fontSize:13, marginTop:5, color:'#555'}}>Cliente: Tienda La 14</div>
-            <div style={{fontSize:13, color:'#555'}}>Asigna a: <b>BODEGA B1 (Juan)</b></div>
-            <div style={{marginTop:10, background:VERDE, color:'white', textAlign:'center', padding:8, borderRadius:8, fontSize:13, fontWeight:700}}>✓ Pedido blindado, 0 perdidos</div>
-          </div>
-        </div>
-      </section>
-
-      {/* BLOQUE 2 - DOLOR */}
-      <section style={{background:'#F8FAFC', padding:'60px 20px'}}>
-        <div style={{maxWidth:1000, margin:'0 auto'}}>
-          <h2 style={{textAlign:'center', fontSize:28, color:AZUL}}>¿Te pasa esto todos los días?</h2>
-          <div style={{display:'flex', gap:20, marginTop:30, flexWrap:'wrap'}}>
-            <div style={{flex:'1 1 280px', background:'white', padding:20, borderRadius:12, border:'1px solid #eee'}}><div style={{color:'red'}}>❌</div><b>Pedidos perdidos</b><p style={{fontSize:14, color:'#666'}}>Pedidos por WhatsApp que le llegan a 3 personas y nadie responde.</p></div>
-            <div style={{flex:'1 1 280px', background:'white', padding:20, borderRadius:12, border:'1px solid #eee'}}><div style={{color:'red'}}>❌</div><b>Plata sin control</b><p style={{fontSize:14, color:'#666'}}>Mensajero que no sabes cuánto efectivo tiene ni si entregó.</p></div>
-            <div style={{flex:'1 1 280px', background:'white', padding:20, borderRadius:12, border:'1px solid #eee'}}><div style={{color:'red'}}>❌</div><b>Inventario falso</b><p style={{fontSize:14, color:'#666'}}>Excel que nunca cuadra con la bodega real.</p></div>
+        <div style={{flex:'1 1 350px', background:'#F8FAFC', borderRadius:20, padding:20, border:'1px solid #E2E8F0'}}>
+          <p style={{fontSize:11, fontWeight:700, opacity:0.6}}>PEDIDO #1092 · UNIFICADO B1</p>
+          <div style={{background:'white', borderRadius:12, padding:15, marginTop:10, boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
+            <div style={{fontSize:12}}>🟢 3 pares <b>Proveedor A (Dama)</b></div>
+            <div style={{fontSize:12, marginTop:4}}>🟢 2 pares <b>Proveedor B (Caballero)</b></div>
+            <div style={{fontSize:12, marginTop:4}}>🟢 1 par <b>Proveedor C (Niños)</b></div>
+            <div style={{marginTop:12, background:VERDE, color:AZUL, textAlign:'center', padding:'10px', borderRadius:10, fontSize:13, fontWeight:800}}>→ UNIFICADO EN BODEGA B1 ✓</div>
+            <div style={{marginTop:10, fontSize:11, color:'#666'}}>Link: stockos.com/inv/maxima<br/>7AM y 2PM a 47 grupos</div>
           </div>
         </div>
       </section>
 
-      {/* BLOQUE 3 - SOLUCION */}
-      <section style={{maxWidth:1000, margin:'0 auto', padding:'60px 20px'}}>
-        <h2 style={{textAlign:'center', fontSize:28, color:AZUL}}>STOCKOS quita el caos en 3 pasos</h2>
-        <div style={{display:'flex', gap:25, marginTop:30, flexWrap:'wrap'}}>
-          <div style={{flex:'1 1 300px'}}><h3>✅ Pedidos blindados</h3><p style={{fontSize:15, color:'#555'}}>Cada pedido de WhatsApp entra solo a un encargado (B1, B2...). Cero pedidos perdidos, cero peleas internas.</p></div>
-          <div style={{flex:'1 1 300px'}}><h3>✅ Mensajeros controlados</h3><p style={{fontSize:15, color:'#555'}}>Control de efectivo, fotos de entrega subidas a Drive automático. Adiós a la desconfianza.</p></div>
-          <div style={{flex:'1 1 300px'}}><h3>✅ Bodega en tiempo real</h3><p style={{fontSize:15, color:'#555'}}>Inventario, bodegas y trazabilidad de 15 días para saber qué pasó con cada producto.</p></div>
-        </div>
-      </section>
-
-      {/* BLOQUE 4 - PRODUCTO */}
-      <section style={{background:AZUL, color:'white', padding:'50px 20px', textAlign:'center'}}>
-        <p style={{letterSpacing:2, fontSize:12, opacity:0.7}}>22 MÓDULOS DISPONIBLES</p>
-        <div style={{display:'flex', justifyContent:'center', gap:20, marginTop:20, flexWrap:'wrap', fontSize:14}}>
-          <span>📦 POS</span><span>📊 Inventario</span><span>👥 Clientes</span><span>🧾 Facturación DIAN</span><span>📈 Reportes</span><span>🔐 Usuarios</span>
-        </div>
-        <p style={{marginTop:15, opacity:0.8, fontSize:13}}>Activa solo lo que necesitas. Pagas $22 USD fijo.</p>
-      </section>
-
-      {/* BLOQUE 5 - OFERTA */}
-      <section id="oferta" style={{padding:'60px 20px', background:'#F8FAFC'}}>
-        <div style={{maxWidth:520, margin:'0 auto', background:AZUL, color:'white', padding:30, borderRadius:20, textAlign:'center'}}>
-          <h2 style={{margin:0, fontSize:26}}>STOCKOS COMPLETO</h2>
-          <p style={{fontSize:32, fontWeight:800, margin:'10px 0', color:VERDE}}>$22 USD / mes</p>
-          <p style={{opacity:0.8, marginTop:-5}}>$88.000 COP - Incluye todo</p>
-          <div style={{textAlign:'left', background:'rgba(255,255,255,0.08)', padding:15, borderRadius:12, marginTop:20, fontSize:14, lineHeight:1.6}}>
-            Incluye: Empresa + Módulos + Soporte + Actualizaciones<br/>
-            <b>Paga y activa hoy:</b><br/>
-            Bancolombia Ahorros 912-510747-93<br/>
-            Nequi 3215981307 - Ivan Andres Cadena Castillo
-          </div>
-          <a href="https://wa.me/573044019899?text=Quiero%20activar%20STOCKOS%20por%20$22" style={{display:'block', background:VERDE, color:AZUL, padding:'16px', borderRadius:30, fontWeight:800, textDecoration:'none', marginTop:20}}>CREAR MI EMPRESA AHORA</a>
-          <p style={{fontSize:11, opacity:0.6, marginTop:10}}>Activación en 15 min por WhatsApp</p>
-        </div>
-      </section>
-
-      <footer style={{textAlign:'center', padding:20, fontSize:12, color:'#999'}}>© 2026 STOCK OS - Santiago de Cali</footer>
-    </div>
-  )
-}
+      {demoOpen && (
+        <div style={{position:'fixed', inset:0, zIndex:50, background:'rgba(10,38,64,0.6)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:20}} onClick={()=>setDemoOpen(false)}>
+          <div style={{background:'white', borderRadius:20, maxWidth:900, width:'100%', maxHeight:'90vh', overflowY:'auto', padding:25}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex', justifyContent:'space-between'}}><h2 style={{fontWeight:800}}>DEMO 2 MIN - MÁXIMA</h2><button onClick={()=>setDemoOpen(false)}>Cerrar ✕</button></div>
+            <div style={{display:'flex', gap:8, marginTop:15}}>{[1,2,3,4].map(s=> <div key={s} onClick={()=>setDemoStep(s as any)} style={{flex:1, height:4, borderRadius:4, background: demoStep>=s? VERDE : '#E2E8F0', cursor:'pointer'}}></div>)}</div>
+            <div style={{marginTop:20}}>
+              {demoStep===1 && <div><h3>1/4 EL CAOS: 3 Excels</h3><p style={{fontSize:14}}>A: 50 dama, B: 30 caballero, C: 20 niños.</p><button onClick={()=>setDemoStep(2)} style={{marginTop:15, background:AZUL, color:'white', padding:'10px 20px', borderRadius:20, border:'none'}}>→</button></div>}
+              {demoStep===2 && <div><h3>2/4 INVENTARIO MAESTRO</h3><p style={{fontSize:13}}>Tabla con origen A/B/C + Costo $40k → Mayor $56k → Detal $74k</p><button onClick={()=>setDemoStep(3)} style={{background:AZUL, color:'white', padding:'10px 20px', borderRadius:20, border:'none'}}>→</button></div>}
+              {demoStep===3 && <div><h3>3/4 PEDIDO DIVIDIDO → B1</h3><p style={{fontSize:13}}>6 pares dividido entre 3 proveedores → unificado en B1</p><button onClick={()=>
