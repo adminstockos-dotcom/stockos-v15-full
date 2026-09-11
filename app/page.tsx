@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const MODULOS_BASE = [
   { name: "Dashboard Real", desc: "Ventas, stock y caja en vivo" },
@@ -14,6 +14,18 @@ const MODULOS_BASE = [
 
 export default function Page() {
   const [showCheckout, setShowCheckout] = useState(false);
+  const [clienteData, setClienteData] = useState<any>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const c = params.get("c");
+    if (c) {
+      try {
+        const decoded = JSON.parse(decodeURIComponent(escape(atob(c))));
+        setClienteData(decoded);
+        console.log("CLIENTE STOCKOS:", decoded);
+      } catch (e) { console.log("link c invalido") }
+    }
+  }, []);
   const wa = "573044019899";
   const msg = encodeURIComponent("Hola quiero STOCKOS V22 $300.000 para MAXIMA IMPORTADORES - ya tengo comprobante");
 
@@ -28,6 +40,14 @@ export default function Page() {
         <button onClick={()=>setShowCheckout(true)} className="bg-[#22c55e] text-black font-black px-6 py-2.5 rounded-full text-sm hover:bg-white transition">Activar $300.000</button>
       </nav>
 
+      {clienteData && (
+        <div className="max-w-7xl mx-auto px-6 pt-6">
+          <div className="bg-[#22c55e] text-black rounded-2xl p-5 flex justify-between items-center">
+            <div><div className="font-black text-xs">PANEL CLIENTE ACTIVADO</div><div className="text-lg font-black">{clienteData.n} - {clienteData.e}</div><div className="text-sm">Total: ${clienteData.total?.toLocaleString("es-CO")} - Mods: {clienteData.mods?.join(", ")}</div></div>
+            <div className="bg-black text-white px-4 py-2 rounded-full text-xs font-bold">?c= OK</div>
+          </div>
+        </div>
+      )}
       <section className="max-w-7xl mx-auto px-6 pt-20 pb-10 text-center">
         <div className="inline-block bg-[#22c55e]/10 text-[#22c55e] border border-[#22c55e]/20 text-xs font-bold px-4 py-2 rounded-full tracking-widest">V22 · SIN TALLER MARCIAL · SIN DUPLICADOS · BUILD d08c83f</div>
         <h1 className="mt-8 text-5xl md:text-[72px] font-black leading-[0.9] tracking-tighter">
@@ -101,4 +121,3 @@ export default function Page() {
     </div>
   );
 }
-
