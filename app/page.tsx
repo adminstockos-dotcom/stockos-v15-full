@@ -1,123 +1,97 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 
-const MODULOS_BASE = [
-  { name: "Dashboard Real", desc: "Ventas, stock y caja en vivo" },
-  { name: "Inventario Maestro", desc: "Tallas, colores, fotos y bodega B1" },
-  { name: "Facturación POS + DIAN", desc: "Factura electrónica en 1 clic" },
-  { name: "Clientes y Cartera", desc: "Crédito, abonos, recordatorios WA" },
-  { name: "Compras Proveedores A/B/C", desc: "Unifica 3 excels con origen" },
-  { name: "Ventas y Cotizaciones", desc: "Cotiza, vende, despacha, guía" },
-  { name: "Reportes de Ganancia", desc: "40% mayor / 85% detal real" },
-  { name: "Link Maestro + WA Auto", desc: "stockos.com/inv + disparo 7AM/2PM" },
+const BASE_PRICE = 300000;
+const BASE_MODULES = [
+  "Dashboard Real",
+  "Inventario Maestro",
+  "Facturación POS + DIAN",
+  "Clientes y Cartera",
+  "Compras A/B/C",
+  "Ventas y Cotizaciones",
+  "Reportes Ganancia",
+  "Link Maestro + WA Auto"
 ];
 
-export default function Page() {
-  const [showCheckout, setShowCheckout] = useState(false);
-  const [clienteData, setClienteData] = useState<any>(null);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const c = params.get("c");
-    if (c) {
-      try {
-        const decoded = JSON.parse(decodeURIComponent(escape(atob(c))));
-        setClienteData(decoded);
-        console.log("CLIENTE STOCKOS:", decoded);
-      } catch (e) { console.log("link c invalido") }
-    }
-  }, []);
-  const wa = "573044019899";
-  const msg = encodeURIComponent("Hola quiero STOCKOS V22 $300.000 para MAXIMA IMPORTADORES - ya tengo comprobante");
+// SOLO MODULOS EXTRA VALIDOS - SIN DUPLICADOS Y SIN TALLER MARCIAL
+const EXTRA_MODULES = [
+  { id: "fotos", name: "Fotos y Variantes", price: 30000, desc: "Tallas, colores, fotos HD" },
+  { id: "barras", name: "Códigos de Barras", price: 35000, desc: "Pistola y etiquetas" },
+  { id: "sucursales", name: "Sucursales", price: 60000, desc: "Multi-bodega B1/B2" },
+  { id: "crm", name: "CRM Avanzado", price: 45000, desc: "Mayorista vs Detal pro" },
+  { id: "ecommerce", name: "E-commerce Pro", price: 70000, desc: "stockos.com/inv/..." },
+  { id: "usuarios", name: "Usuarios y Roles", price: 40000, desc: "Vendedores y permisos" },
+  { id: "api-shopify", name: "API Shopify/Woo", price: 80000, desc: "Sync automático" },
+];
+
+export default function AdminPage() {
+  const [form, setForm] = useState({ empresa: "MAXIMA IMPORTADORES", nit: "NIT", direccion: "CL 7 14 57 SAN BOSCO CALI", email: "admin@stockos.com", wa: "3138841851", metodo: "Nequi" });
+  const [selected, setSelected] = useState<string[]>([]);
+  const [generated, setGenerated] = useState<any>(null);
+  const [copied, setCopied] = useState(false);
+
+  const totalCOP = useMemo(() => {
+    const extra = selected.reduce((a,id)=> a + (EXTRA_MODULES.find(x=>x.id===id)?.price||0),0);
+    return BASE_PRICE + extra;
+  },[selected]);
+
+  const handleGenerate = () => {
+    const payload = { n: form.empresa, nit: form.nit, dir: form.direccion, e: form.email, w: form.wa, metodo: form.metodo, total: totalCOP, mods: selected, base: BASE_PRICE, ts: Date.now() };
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    // FIX V22: va a /admin/cliente?c= NO a "/" 
+    const link = `${window.location.origin}/admin/cliente?c=${b64}`;
+    setGenerated({ link, payload });
+  };
 
   return (
-    <div className="min-h-screen bg-[#080808] text-white antialiased selection:bg-[#22c55e] selection:text-black">
-      <nav className="max-w-7xl mx-auto flex justify-between items-center px-6 h-[72px] border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-[#22c55e] rounded-xl flex items-center justify-center font-black text-black">S</div>
-          <span className="font-black tracking-tight">STOCKOS V22</span>
-          <span className="hidden md:inline text-[10px] bg-white/10 px-2 py-1 rounded-full tracking-widest">MAXIMA IMPORTADORES · LIMPIO</span>
+    <div className="min-h-screen bg-[#f1f5f9] p-4 font-sans">
+      <div className="max-w-3xl mx-auto">
+        <div className="bg-[#0f172a] text-white rounded-2xl p-6">
+          <div className="text-xs opacity-60">Reporte consolidado</div>
+          <div className="mt-2 bg-[#22c55e] text-black text-center py-2 rounded-full text-xs font-bold">Enviar consolidado ahora a 304-401-9899 y admin@stockos.com</div>
+          <div className="mt-4 text-[10px] opacity-70">© CONSOLIDADO VENTAS STOCKOS 2026-09-11<br/>NIT: {form.nit} Empresa: {form.empresa} - Base $300.000 + {selected.length} extras = ${totalCOP.toLocaleString("es-CO")} - Modo: Proveedor A/B/C, Pedidos Unificados B1-Gen, Ganancia 40%/85%, Link 7s, Filtros Mayor/Detal/Efectivo/Transferencia/Contraentrega<br/>Modulos: {BASE_MODULES.join(", ")} {selected.length>0 ? "+ " + selected.join(", ") : ""}</div>
+          <div className="mt-4 bg-white/10 rounded-xl p-2 text-center text-xs">Copiar email</div>
         </div>
-        <button onClick={()=>setShowCheckout(true)} className="bg-[#22c55e] text-black font-black px-6 py-2.5 rounded-full text-sm hover:bg-white transition">Activar $300.000</button>
-      </nav>
 
-      {clienteData && (
-        <div className="max-w-7xl mx-auto px-6 pt-6">
-          <div className="bg-[#22c55e] text-black rounded-2xl p-5 flex justify-between items-center">
-            <div><div className="font-black text-xs">PANEL CLIENTE ACTIVADO</div><div className="text-lg font-black">{clienteData.n} - {clienteData.e}</div><div className="text-sm">Total: ${clienteData.total?.toLocaleString("es-CO")} - Mods: {clienteData.mods?.join(", ")}</div></div>
-            <div className="bg-black text-white px-4 py-2 rounded-full text-xs font-bold">?c= OK</div>
+        <div className="mt-4 bg-[#dcfce7] border border-[#22c55e]/30 rounded-xl p-4 text-xs">
+          <div className="font-bold">Cliente pre-creado (del ultimo pedido)</div>
+          <div className="mt-1">Empresa: {form.empresa}<br/>NIT: {form.nit}<br/>Direccion: {form.direccion}<br/>Email: {form.email}<br/>WA: {form.wa}<br/>Metodo pago: {form.metodo}</div>
+        </div>
+
+        <div className="mt-4 bg-white rounded-xl p-4">
+          <div className="text-[10px] font-bold tracking-widest">MÓDULOS ADICIONALES (7 disponibles) - V22 LIMPIO SIN TALLER MARCIAL Y SIN DUPLICADOS</div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {EXTRA_MODULES.map(m=>(
+              <label key={m.id} className={`border rounded-lg p-2 text-[10px] cursor-pointer ${selected.includes(m.id) ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white border-slate-200'}`}>
+                <input type="checkbox" className="mr-1" checked={selected.includes(m.id)} onChange={()=> setSelected(s=> s.includes(m.id) ? s.filter(x=>x!==m.id) : [...s, m.id])} />
+                {m.name} ${m.price.toLocaleString("es-CO")}
+              </label>
+            ))}
+          </div>
+          <div className="mt-4 text-[10px] bg-red-50 border border-red-200 p-2 rounded text-red-700">
+            ✅ V22: Eliminados: Taller Marcial, Proveedor B 5 infinito duplicado, Multibodega duplicado, Compras duplicado, Importa 3 excels duplicado, Filtros duplicado, Catalogo PDF duplicado, Offline duplicado.<br/>
+            Base incluye: {BASE_MODULES.join(" · ")}
           </div>
         </div>
-      )}
-      <section className="max-w-7xl mx-auto px-6 pt-20 pb-10 text-center">
-        <div className="inline-block bg-[#22c55e]/10 text-[#22c55e] border border-[#22c55e]/20 text-xs font-bold px-4 py-2 rounded-full tracking-widest">V22 · SIN TALLER MARCIAL · SIN DUPLICADOS · BUILD d08c83f</div>
-        <h1 className="mt-8 text-5xl md:text-[72px] font-black leading-[0.9] tracking-tighter">
-          STOCKOS <span className="text-[#22c55e]">V22</span><br/>BASE $300K<br/>8 VERDES.
-        </h1>
-        <p className="mt-6 text-white/50 max-w-2xl mx-auto text-lg">Diseño oscuro premium V20 restaurado. Eliminamos Taller Marcial y módulos repetidos. Solo lo esencial para vender 200 pares/día. Tailwind puro, cero errores TSX.</p>
-        <div className="mt-8 flex justify-center gap-3">
-          <button onClick={()=>setShowCheckout(true)} className="bg-[#22c55e] text-black font-black px-8 py-4 rounded-full text-lg hover:scale-[1.02] transition">EMPEZAR AHORA $300.000</button>
-          <a href={`https://wa.me/${wa}?text=${msg}`} target="_blank" className="border border-white/15 px-8 py-4 rounded-full font-bold hover:bg-white/10">WhatsApp 304-401-9899</a>
-        </div>
-      </section>
 
-      <section className="max-w-7xl mx-auto px-6 py-12">
-        <div className="flex justify-between items-end mb-6">
-          <h2 className="text-2xl font-black">Lo que incluye tu base <span className="text-[#22c55e]">$300.000</span></h2>
-          <span className="text-xs text-white/40">8 MÓDULOS VERDES · OBLIGATORIOS</span>
-        </div>
-        <div className="grid md:grid-cols-4 gap-4">
-          {MODULOS_BASE.map(m=>(
-            <div key={m.name} className="bg-[#22c55e] text-black p-6 rounded-[20px]">
-              <div className="text-[10px] font-black tracking-widest opacity-60">INCLUIDO</div>
-              <div className="font-black text-[18px] mt-2 leading-tight">{m.name}</div>
-              <div className="text-sm font-medium opacity-70 mt-1">{m.desc}</div>
+        <div className="mt-4 bg-[#0f172a] text-white rounded-xl p-6 text-center">
+          <div className="text-[10px] opacity-60">TOTAL PLAN</div>
+          <div className="text-3xl font-black">${totalCOP.toLocaleString("es-CO")}</div>
+          <div className="text-[10px] opacity-60">Base $300.000 + {selected.length} modulos</div>
+          {!generated ? (
+            <button onClick={handleGenerate} className="w-full mt-4 bg-[#22c55e] text-black font-black py-3 rounded-full text-sm">Aprobar y generar link ?c=</button>
+          ) : (
+            <div className="mt-4 bg-white text-black rounded-xl p-3 text-left">
+              <div className="text-[10px] font-bold">LINK GENERADO V22 - YA VA A /admin/cliente NO A LANDING:</div>
+              <div className="text-[9px] break-all bg-slate-100 p-2 rounded mt-1">{generated.link}</div>
+              <div className="flex gap-2 mt-2">
+                <button onClick={()=>{navigator.clipboard.writeText(generated.link); setCopied(true); setTimeout(()=>setCopied(false),2000)}} className="flex-1 bg-black text-white py-2 rounded-full text-xs">{copied ? '¡Copiado!' : 'Copiar Link'}</button>
+                <a href={generated.link} target="_blank" className="flex-1 bg-[#22c55e] text-black py-2 rounded-full text-xs font-bold text-center">Abrir Panel Cliente</a>
+              </div>
             </div>
-          ))}
+          )}
         </div>
-        <div className="mt-6 grid md:grid-cols-3 gap-3 text-xs">
-          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-300">❌ Eliminado: Taller Marcial</div>
-          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-300">❌ Eliminado: Duplicados Finanzas/Reportes</div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-white/60">✅ Código base V20 d08c83f limpio · Tailwind</div>
-        </div>
-      </section>
-
-      <section id="checkout" className="max-w-3xl mx-auto px-6 py-16">
-        <div className="bg-white text-black rounded-[32px] p-8 md:p-10 shadow-[0_0_80px_rgba(34,197,94,0.2)]">
-          <h3 className="text-3xl font-black">Checkout Real V22</h3>
-          <p className="text-black/60 mt-2 text-sm">Paga y envía comprobante al WhatsApp para activación inmediata en menos de 2 horas.</p>
-          <div className="mt-8 space-y-4">
-            <div className="border-2 border-[#22c55e] rounded-2xl p-5 flex justify-between items-center">
-              <div><div className="font-black text-xs tracking-widest">NEQUI</div><div className="text-2xl font-mono font-black mt-1">321 598 1307</div><div className="text-xs text-black/60">Andrés Castillo</div></div>
-              <div className="w-10 h-10 bg-[#22c55e] rounded-full flex items-center justify-center font-black">N</div>
-            </div>
-            <div className="border-2 border-black rounded-2xl p-5 flex justify-between items-center">
-              <div><div className="font-black text-xs tracking-widest">BANCOLOMBIA AHORROS</div><div className="text-2xl font-mono font-black mt-1">912-510747-93</div><div className="text-xs text-black/60">Andrés Castillo</div></div>
-              <div className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center font-black">B</div>
-            </div>
-            <div className="border rounded-2xl p-5 flex justify-between items-center">
-              <div><div className="font-black text-xs tracking-widest">PAYPAL</div><div className="text-base font-mono font-black mt-1 break-all">andreskstllo@gmail.com</div><div className="text-xs text-black/60">Internacional</div></div>
-              <div className="w-10 h-10 bg-[#0070BA] text-white rounded-full flex items-center justify-center font-black">P</div>
-            </div>
-          </div>
-          <a href={`https://wa.me/${wa}?text=${msg}`} target="_blank" className="mt-8 w-full bg-black text-white font-black py-4 rounded-full flex justify-center hover:bg-[#22c55e] hover:text-black transition">ENVIÉ COMPROBANTE → WA 304-401-9899</a>
-          <div className="text-center text-[10px] text-black/40 mt-3 tracking-widest">STOCKOS V22 · SANTIAGO DE CALI · 2026</div>
-        </div>
-      </section>
-
-      <a href={`https://wa.me/${wa}?text=${msg}`} target="_blank" className="fixed bottom-6 right-6 bg-[#25D366] w-14 h-14 rounded-full flex items-center justify-center shadow-2xl font-black text-white text-xl">W</a>
-
-      {showCheckout && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur flex items-center justify-center p-6 z-50">
-          <div className="bg-white text-black rounded-[24px] p-8 max-w-sm w-full">
-            <h4 className="font-black text-xl">Activar V22 por $300.000?</h4>
-            <p className="text-sm text-black/60 mt-2">8 módulos verdes, sin Taller Marcial, checkout real.</p>
-            <div className="flex gap-3 mt-6">
-              <button onClick={()=>setShowCheckout(false)} className="flex-1 border py-3 rounded-full font-bold">Cerrar</button>
-              <a href={`https://wa.me/${wa}?text=${msg}`} className="flex-1 bg-[#22c55e] text-black py-3 rounded-full font-black text-center">WhatsApp</a>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
-  );
+  )
 }
