@@ -37,6 +37,32 @@ const toB64 = (str) => {
   catch { return window.btoa(str); }
 };
 
+function getTodayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getOrders() {
+  try { return JSON.parse(localStorage.getItem("stockos_orders") || "[]"); }
+  catch { return []; }
+}
+
+function getOrdersToday() {
+  const today = getTodayStr();
+  return getOrders().filter((o) => o.fecha && o.fecha.slice(0, 10) === today);
+}
+
+function buildConsolidado() {
+  const today = getTodayStr();
+  const orders = getOrdersToday();
+  const sumToday = orders.reduce((s, o) => s + (o.total || 0), 0);
+  let detalle = "";
+  orders.forEach((o, i) => {
+    const modNames = (o.modsNames || o.mods || []).join(", ");
+    detalle += `${i + 1}. ${o.empresa} - $${(o.total || 0).toLocaleString("es-CO")} - ${o.metodo} - Mods: ${modNames}\n`;
+  });
+  return `📊 CONSOLIDADO VENTAS STOCKOS ${today}\nTotal pedidos hoy: ${orders.length}\nTotal recaudado: $${sumToday.toLocaleString("es-CO")}\nDetalle:\n${detalle || "Sin pedidos hoy."}`;
+}
+
 export default function AdminPage() {
   const [logged, setLogged] = useState(false);
   const [email, setEmail] = useState("");
@@ -45,8 +71,25 @@ export default function AdminPage() {
   const [mods, setMods] = useState([]);
   const [linkGen, setLinkGen] = useState("");
   const [copiado, setCopiado] = useState(false);
+  const [ordersToday, setOrdersToday] = useState([]);
+  const [consolidado, setConsolidado] = useState("");
+  const [emailCopiado, setEmailCopiado] = useState(false);
+  const [lastOrder, setLastOrder] = useState(null);
 
   const total = BASE + mods.reduce((s, id) => s + (MODULOS_22.find((m) => m.id === id)?.price || 0), 0);
+
+  useEffect(() => {
+    if (!logged) return;
+    const orders = getOrdersToday();
+    setOrdersToday(orders);
+    const allOrders = getOrders();
+    if (allOrders.length > 0) {
+      const last = allOrders[allOrders.length - 1];
+      setLastOrder(last);
+      if (last.mods) setMods(last.mods);
+    }
+    setConsolidado(buildConsolidado());
+  }, [logged]);
 
   const login = (e) => {
     e.preventDefault();
@@ -61,12 +104,12 @@ export default function AdminPage() {
   const generarLink = () => {
     const cliente = {
       empresa: {
-        nombre: "MAXIMA IMPORTADORES",
-        nit: "14836265-4",
-        direccion: "CL 7 14 57 SAN BOSCO CALI",
-        email: "adminstockos@gmail.com",
-        wa: "3186411851",
-        ciudad: "Cali",
+        nombre: lastOrder?.empresa || "MAXIMA IMPORTADORES",
+        nit: lastOrder?.nit || "14836265-4",
+        direccion: lastOrder?.dir || "CL 7 14 57 SAN BOSCO CALI",
+        email: lastOrder?.email || "adminstockos@gmail.com",
+        wa: lastOrder?.wa || "3186411851",
+        ciudad: lastOrder?.ciudad || "Cali",
       },
       mods,
       total,
@@ -84,6 +127,26 @@ export default function AdminPage() {
     }
   };
 
+  const enviarConsolidado = () => {
+    const report = buildConsolidado();
+    setConsolidado(report);
+    window.open("https://wa.me/573044019899?text=" + encodeURIComponent(report), "_blank");
+    fetch("/api/send-daily-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to: "adminstockos@gmail.com", report }),
+    }).catch(() => {});
+  };
+
+  const copiarEmail = () => {
+    if (consolidado && navigator.clipboard) {
+      navigator.clipboard.writeText("Para: adminstockos@gmail.com\nAsunto: Consolidado Ventas STOCKOS\n\n" + consolidado).then(() => {
+        setEmailCopiado(true);
+        setTimeout(() => setEmailCopiado(false), 2000);
+      });
+    }
+  };
+
   if (!logged) {
     return (
       <div style={{ fontFamily: "Arial, sans-serif", background: "#F8FFFE", minHeight: "100vh", color: "#0A2640", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
@@ -91,7 +154,7 @@ export default function AdminPage() {
           <img src="/logo.png" height="48" style={{ background: "white", padding: 6, borderRadius: 10 }} />
         </header>
         <form onSubmit={login} style={{ background: "white", borderRadius: 16, border: "1px solid #E2E8F0", padding: 32, width: 340, maxWidth: "90vw" }}>
-          <h2 style={{ marginTop: 0, textAlign: "center" }}>ADMIN STOCKOS V17</h2>
+          <h2 style={{ marginTop: 0, textAlign: "center" }}>ADMIN STOCKOS V19</h2>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
           <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="Contraseña" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
           {error && <div style={{ color: "#dc2626", fontSize: 12, marginTop: 8 }}>{error}</div>}
@@ -102,28 +165,63 @@ export default function AdminPage() {
     );
   }
 
+  const sumToday = ordersToday.reduce((s, o) => s + (o.total || 0), 0);
+
   return (
     <div style={{ fontFamily: "Arial, sans-serif", background: "#F8FFFE", minHeight: "100vh", color: "#0A2640" }}>
       <header style={{ background: "white", borderBottom: "1px solid #E2E8F0", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <img src="/logo.png" height="48" style={{ background: "white", padding: 6, borderRadius: 10 }} />
-        <span style={{ fontWeight: 800, fontSize: 13 }}>PANEL ADMIN V17</span>
+        <span style={{ fontWeight: 800, fontSize: 13 }}>PANEL ADMIN V19</span>
       </header>
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px 20px" }}>
-        <h2 style={{ marginTop: 0 }}>Crear Cliente: MAXIMA IMPORTADORES</h2>
+
+        {/* Pedidos de hoy */}
         <div style={{ background: "white", borderRadius: 12, border: "1px solid #E2E8F0", padding: 16, marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Datos del cliente</div>
+          <div style={{ fontSize: 15, fontWeight: 900, marginBottom: 10 }}>Pedidos de hoy - {getTodayStr()}</div>
+          {ordersToday.length === 0 ? (
+            <div style={{ fontSize: 12, color: "#94a3b8" }}>Sin pedidos hoy.</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Total: {ordersToday.length} pedidos - ${sumToday.toLocaleString("es-CO")}</div>
+              {ordersToday.map((o, i) => (
+                <div key={o.id} style={{ background: "#F8FAFC", borderRadius: 8, padding: 10, marginTop: 6, fontSize: 12 }}>
+                  <b>{i + 1}. {o.empresa}</b> - ${(o.total || 0).toLocaleString("es-CO")} - {o.metodo}<br />
+                  <span style={{ fontSize: 10, color: "#64748b" }}>NIT: {o.nit} | WA: {o.wa} | {o.ciudad} | {(o.modsNames || []).join(", ")}</span>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
+        {/* Consolidado */}
+        <div style={{ background: "#0A2640", color: "white", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>Reporte consolidado</div>
+          <button onClick={enviarConsolidado} style={{ width: "100%", background: "#1ECB6A", color: "white", padding: 12, borderRadius: 10, fontWeight: 800, border: "none", cursor: "pointer" }}>Enviar consolidado ahora a 304-401-9899 y adminstockos@gmail.com</button>
+          {consolidado && (
+            <>
+              <div style={{ marginTop: 10, fontSize: 10, whiteSpace: "pre-wrap", background: "rgba(255,255,255,0.1)", padding: 10, borderRadius: 8 }}>{consolidado}</div>
+              <div style={{ fontSize: 11, marginTop: 8, opacity: 0.8 }}>Reporte para enviar a adminstockos@gmail.com</div>
+              <button onClick={copiarEmail} style={{ marginTop: 6, width: "100%", background: "white", color: "#0A2640", padding: 10, borderRadius: 10, border: "none", fontWeight: 700, cursor: "pointer" }}>{emailCopiado ? "COPIADO!" : "Copiar email"}</button>
+            </>
+          )}
+        </div>
+
+        {/* Crear cliente */}
+        <div style={{ background: "white", borderRadius: 12, border: "1px solid #E2E8F0", padding: 16, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Crear cliente: {lastOrder ? lastOrder.empresa : "MAXIMA IMPORTADORES"}</div>
           <div style={{ fontSize: 12, lineHeight: 1.8 }}>
-            <b>Empresa:</b> MAXIMA IMPORTADORES<br />
-            <b>NIT:</b> 14836265-4<br />
-            <b>Dirección:</b> CL 7 14 57 SAN BOSCO CALI<br />
-            <b>Email:</b> adminstockos@gmail.com<br />
-            <b>WA:</b> 3186411851<br />
-            <b>Ciudad:</b> Cali
+            <b>Empresa:</b> {lastOrder?.empresa || "MAXIMA IMPORTADORES"}<br />
+            <b>NIT:</b> {lastOrder?.nit || "14836265-4"}<br />
+            <b>Dirección:</b> {lastOrder?.dir || "CL 7 14 57 SAN BOSCO CALI"}<br />
+            <b>Email:</b> {lastOrder?.email || "adminstockos@gmail.com"}<br />
+            <b>WA:</b> {lastOrder?.wa || "3186411851"}<br />
+            <b>Ciudad:</b> {lastOrder?.ciudad || "Cali"}
           </div>
         </div>
 
+        {/* Modulos */}
         <div style={{ background: "#F1F5F9", borderRadius: 12, padding: 16, marginBottom: 16 }}>
-          <div style={{ fontWeight: 900, fontSize: 13, marginBottom: 12 }}>Selecciona módulos adicionales (22 disponibles)</div>
+          <div style={{ fontWeight: 900, fontSize: 13, marginBottom: 12 }}>Módulos adicionales (22 disponibles) {lastOrder ? "- precargados del último pedido" : ""}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
             {MODULOS_22.map((m) => (
               <label key={m.id} style={{ background: mods.includes(m.id) ? "#0A2640" : "white", color: mods.includes(m.id) ? "white" : "#0A2640", border: "1px solid #E2E8F0", borderRadius: 10, padding: 10, fontSize: 11, cursor: "pointer" }}>
@@ -134,6 +232,7 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* Total + link */}
         <div style={{ background: "#0A2640", color: "white", borderRadius: 12, padding: 16, textAlign: "center" }}>
           <div style={{ fontSize: 12, opacity: 0.7 }}>TOTAL PLAN</div>
           <div style={{ fontSize: 32, fontWeight: 900 }}>${total.toLocaleString("es-CO")}</div>

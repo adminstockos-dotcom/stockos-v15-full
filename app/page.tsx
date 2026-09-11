@@ -32,30 +32,52 @@ const MODULOS_22 = [
 
 const toB64 = (str) => {
   if (typeof window === "undefined") return "";
-  try {
-    return window.btoa(unescape(encodeURIComponent(str)));
-  } catch {
-    return window.btoa(str);
-  }
+  try { return window.btoa(unescape(encodeURIComponent(str))); }
+  catch { return window.btoa(str); }
 };
 
 const fromB64 = (str) => {
   if (typeof window === "undefined") return "{}";
-  try {
-    return decodeURIComponent(escape(window.atob(str)));
-  } catch {
-    return window.atob(str);
-  }
+  try { return decodeURIComponent(escape(window.atob(str))); }
+  catch { return window.atob(str); }
 };
+
+function getTodayStr() {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+}
+
+function getOrders() {
+  try { return JSON.parse(localStorage.getItem("stockos_orders") || "[]"); }
+  catch { return []; }
+}
+
+function saveOrder(order) {
+  const orders = getOrders();
+  orders.push(order);
+  localStorage.setItem("stockos_orders", JSON.stringify(orders));
+}
+
+function getOrdersToday() {
+  const today = getTodayStr();
+  return getOrders().filter((o) => o.fecha && o.fecha.slice(0, 10) === today);
+}
+
+function buildConsolidado() {
+  const today = getTodayStr();
+  const orders = getOrdersToday();
+  const sumToday = orders.reduce((s, o) => s + (o.total || 0), 0);
+  let detalle = "";
+  orders.forEach((o, i) => {
+    const modNames = (o.mods || []).map((id) => MODULOS_22.find((m) => m.id === id)?.name || id).join(", ");
+    detalle += `${i + 1}. ${o.empresa} - $${(o.total || 0).toLocaleString("es-CO")} - ${o.metodo} - Mods: ${modNames}\n`;
+  });
+  return `📊 CONSOLIDADO VENTAS STOCKOS ${today}\nTotal pedidos hoy: ${orders.length}\nTotal recaudado: $${sumToday.toLocaleString("es-CO")}\nDetalle:\n${detalle || "Sin pedidos hoy."}`;
+}
 
 export default function Home() {
   const [empresa, setEmpresa] = useState({
-    nombre: "Maxima Importadores",
-    nit: "14836265-4",
-    direccion: "CL 7 14 57 SAN BOSCO CALI",
-    wa: "3186411851",
-    email: "adminstockos@gmail.com",
-    ciudad: "Cali",
+    nombre: "", nit: "", direccion: "", wa: "", email: "", ciudad: "",
   });
   const [proveedores, setProveedores] = useState([
     { id: "b1", nombre: "Proveedor A - Cali Centro", bodega: "B1", ciudad: "Cali" },
@@ -90,6 +112,29 @@ export default function Home() {
         if (data.mods) setMods(data.mods);
       }
     } catch {}
+  }, []);
+
+  // Daily report at 8PM
+  useEffect(() => {
+    const checkDailyReport = () => {
+      const now = new Date();
+      const hour = now.getHours();
+      const today = getTodayStr();
+      const lastReport = localStorage.getItem("lastDailyReportDate");
+      if (hour >= 20 && lastReport !== today) {
+        const consolidado = buildConsolidado();
+        localStorage.setItem("lastDailyReportDate", today);
+        window.open("https://wa.me/573044019899?text=" + encodeURIComponent(consolidado), "_blank");
+        fetch("/api/send-daily-report", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: "adminstockos@gmail.com", report: consolidado }),
+        }).catch(() => {});
+      }
+    };
+    checkDailyReport();
+    const interval = setInterval(checkDailyReport, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   const calcMayor = (c) => Math.round(c * 1.4);
@@ -149,14 +194,29 @@ export default function Home() {
     });
   };
 
-  const notifyPayment = (medio) => {
+  const procesarPago = (metodo) => {
     if (!isClientComplete) {
       setPaso(0);
       alert("Completa todos los datos de la empresa antes de pagar.");
       return;
     }
-    const modules = mods.map((id) => MODULOS_22.find((m) => m.id === id)?.name).filter(Boolean).join(", ");
-    const message = "STOCKOS V17 - Pago " + medio + "\\nEmpresa: " + empresa.nombre + "\\nNIT: " + empresa.nit + "\\nDirección: " + empresa.direccion + "\\nEmail: " + empresa.email + "\\nWA: " + empresa.wa + "\\nCiudad: " + empresa.ciudad + "\\nMódulos: " + modules + "\\nTotal: $" + total.toLocaleString("es-CO") + "\\nMedio: " + medio;
+    const modsSeleccionados = mods.map((id) => MODULOS_22.find((m) => m.id === id)?.name || id).filter(Boolean);
+    const order = {
+      id: Date.now(),
+      empresa: empresa.nombre,
+      nit: empresa.nit,
+      dir: empresa.direccion,
+      wa: empresa.wa,
+      email: empresa.email,
+      ciudad: empresa.ciudad,
+      mods: mods,
+      modsNames: modsSeleccionados,
+      total,
+      metodo,
+      fecha: new Date().toISOString(),
+    };
+    saveOrder(order);
+    const message = `✅ NUEVO PAGO STOCKOS\nEmpresa: ${empresa.nombre}\nNIT: ${empresa.nit}\nDir: ${empresa.direccion}\nEmail: ${empresa.email}\nWA Cliente: ${empresa.wa}\nCiudad: ${empresa.ciudad}\nMódulos: ${modsSeleccionados.join(", ")}\nTotal: $${total.toLocaleString("es-CO")}\nMedio: ${metodo}\nHora: ${new Date().toLocaleString("es-CO")}\nComprobante: adjunto`;
     window.open("https://wa.me/573044019899?text=" + encodeURIComponent(message), "_blank");
   };
 
@@ -190,7 +250,6 @@ export default function Home() {
   return (
     <div style={{ fontFamily: "Arial, sans-serif", background: "#F8FFFE", minHeight: "100vh", color: "#0A2640" }}>
       <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 20px" }}>
-        {/* HERO */}
         <header style={{ background: "white", borderBottom: "1px solid #E2E8F0", margin: "0 -20px", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <img src="/logo.png" height="48" style={{ background: "white", padding: 6, borderRadius: 10 }} />
           <a href="/admin" style={{ color: "#0A2640", fontSize: 12, fontWeight: 800, textDecoration: "none" }}>ADMIN</a>
@@ -198,7 +257,7 @@ export default function Home() {
         <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: 24, padding: "36px 0 20px" }}>
           <div>
             <div style={{ display: "inline-block", background: "#E6FFF3", color: "#0A7A42", padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800 }}>
-              STOCKOS V17 - VENTA AUTOMATIZADA
+              STOCKOS V19 - VENTA AUTOMATIZADA
             </div>
             <h1 style={{ fontSize: 38, fontWeight: 900, lineHeight: 1.05, marginTop: 12 }}>
               De <span style={{ color: "#1ECB6A" }}>3 Excels desordenados</span> a 1 Inventario Maestro que vende solo.
@@ -207,25 +266,17 @@ export default function Home() {
               Si su empresa tiene un caos y pierde ventas buscando quien tiene el producto que necesita vender, STOCKOS automatiza todo lo que hace manual y vende mas en automatico. 40% mayor / 85% detal, pedidos divididos unificados B1, WA 7AM/2PM.
             </p>
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button onClick={() => setPaso(0)} style={{ background: "#1ECB6A", color: "white", padding: "12px 18px", borderRadius: 999, border: "none", fontWeight: 800, cursor: "pointer" }}>
-                Crear mi empresa
-              </button>
-              <button onClick={generarLink} style={{ background: "white", padding: "12px 18px", borderRadius: 999, border: "1px solid #E2E8F0", fontWeight: 700, cursor: "pointer" }}>
-                Ver link ?c=
-              </button>
+              <button onClick={() => setPaso(0)} style={{ background: "#1ECB6A", color: "white", padding: "12px 18px", borderRadius: 999, border: "none", fontWeight: 800, cursor: "pointer" }}>Crear mi empresa</button>
+              <button onClick={generarLink} style={{ background: "white", padding: "12px 18px", borderRadius: 999, border: "1px solid #E2E8F0", fontWeight: 700, cursor: "pointer" }}>Ver link ?c=</button>
             </div>
           </div>
-          {/* Inventario Maestro preview */}
           <div style={{ background: "white", borderRadius: 16, border: "1px solid #E2E8F0", padding: 14 }}>
-            <div style={{ fontWeight: 800, fontSize: 12 }}>Inventario Maestro en vivo - {empresa.nombre}</div>
+            <div style={{ fontWeight: 800, fontSize: 12 }}>Inventario Maestro en vivo{empresa.nombre ? " - " + empresa.nombre : ""}</div>
             {inventarioMaestro.map((p) => (
               <div key={p.id} style={{ display: "flex", justifyContent: "space-between", background: "#F8FAFC", padding: "10px", borderRadius: 10, fontSize: 12, marginTop: 8 }}>
                 <div>
-                  <b>{p.nombre}</b> T{p.talla}
-                  <br />
-                  <span style={{ fontSize: 10 }}>
-                    {proveedores.map((pr) => pr.bodega + ":" + (p.stocks[pr.id] || 0)).join(" ")}
-                  </span>
+                  <b>{p.nombre}</b> T{p.talla}<br />
+                  <span style={{ fontSize: 10 }}>{proveedores.map((pr) => pr.bodega + ":" + (p.stocks[pr.id] || 0)).join(" ")}</span>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontWeight: 800 }}>{p.totalStock} und</div>
@@ -239,9 +290,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* MODULOS */}
         <div style={{ background: "#F1F5F9", borderRadius: 16, padding: 16 }}>
-          <div style={{ fontWeight: 900, fontSize: 13 }}>BASE DEL PLAN $300.000 - 8 módulos incluidos + 22 adicionales.</div>
+          <div style={{ fontWeight: 900, fontSize: 13 }}>BASE DEL PLAN $300.000 - incluye 8 módulos verdes + 22 adicionales opcionales.</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginTop: 12 }}>
             {CORE_MODULES.map((name) => (
               <label key={name} style={{ background: "#E6FFF3", color: "#0A7A42", border: "1px solid #1ECB6A", borderRadius: 10, padding: 8, fontSize: 10, fontWeight: 800 }}>
@@ -249,24 +299,8 @@ export default function Home() {
               </label>
             ))}
             {MODULOS_22.map((m) => (
-              <label
-                key={m.id}
-                style={{
-                  background: mods.includes(m.id) ? "#0A2640" : "white",
-                  color: mods.includes(m.id) ? "white" : "#0A2640",
-                  border: "1px solid #E2E8F0",
-                  borderRadius: 10,
-                  padding: "8px",
-                  fontSize: 10,
-                  cursor: "pointer",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={mods.includes(m.id)}
-                  onChange={() => setMods((prev) => (prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id]))}
-                  style={{ display: "none" }}
-                />
+              <label key={m.id} style={{ background: mods.includes(m.id) ? "#0A2640" : "white", color: mods.includes(m.id) ? "white" : "#0A2640", border: "1px solid #E2E8F0", borderRadius: 10, padding: "8px", fontSize: 10, cursor: "pointer" }}>
+                <input type="checkbox" checked={mods.includes(m.id)} onChange={() => setMods((prev) => prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id])} style={{ display: "none" }} />
                 <div style={{ fontWeight: 800 }}>{m.name}</div>
                 <div style={{ fontSize: 9 }}>${m.price.toLocaleString("es-CO")}</div>
               </label>
@@ -274,35 +308,18 @@ export default function Home() {
           </div>
         </div>
 
-        {/* TABS + PANEL + SIDEBAR */}
         <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 16, paddingBottom: 40 }}>
           <div style={{ background: "white", borderRadius: 16, border: "1px solid #E2E8F0", padding: 16 }}>
-            {/* Tabs */}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {tabs.map((s, i) => (
-                <button
-                  key={s}
-                  onClick={() => setPaso(i)}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 999,
-                    border: "1px solid #E2E8F0",
-                    background: paso === i ? "#0A2640" : "white",
-                    color: paso === i ? "white" : "#0A2640",
-                    fontSize: 11,
-                    cursor: "pointer",
-                  }}
-                >
-                  {i + 1}. {s}
-                </button>
+                <button key={s} onClick={() => setPaso(i)} style={{ padding: "8px 12px", borderRadius: 999, border: "1px solid #E2E8F0", background: paso === i ? "#0A2640" : "white", color: paso === i ? "white" : "#0A2640", fontSize: 11, cursor: "pointer" }}>{i + 1}. {s}</button>
               ))}
             </div>
 
-            {/* PASO 0 - Empresa */}
             {paso === 0 && (
               <div style={{ marginTop: 16 }}>
                 <h3 style={{ marginBottom: 8 }}>Paso 1 - Datos de tu empresa</h3>
-                <input value={empresa.nombre} onChange={(e) => setEmpresa({ ...empresa, nombre: e.target.value })} placeholder="Maxima Importadores" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
+                <input value={empresa.nombre} onChange={(e) => setEmpresa({ ...empresa, nombre: e.target.value })} placeholder="Nombre empresa" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
                 <input value={empresa.nit} onChange={(e) => setEmpresa({ ...empresa, nit: e.target.value })} placeholder="NIT" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
                 <input value={empresa.direccion} onChange={(e) => setEmpresa({ ...empresa, direccion: e.target.value })} placeholder="Dirección" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
                 <input value={empresa.wa} onChange={(e) => setEmpresa({ ...empresa, wa: e.target.value })} placeholder="WhatsApp" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
@@ -311,7 +328,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* PASO 1 - Bodegas B∞ */}
             {paso === 1 && (
               <div style={{ marginTop: 16 }}>
                 <h3 style={{ marginBottom: 8 }}>Bodegas B1 a B-Infinito</h3>
@@ -322,13 +338,10 @@ export default function Home() {
                     <input value={p.ciudad} onChange={(e) => setProveedores(proveedores.map((x) => (x.id === p.id ? { ...x, ciudad: e.target.value } : x)))} style={{ width: 100, padding: 8, borderRadius: 8, border: "1px solid #E2E8F0" }} />
                   </div>
                 ))}
-                <button onClick={addProveedor} style={{ marginTop: 10, padding: "8px 14px", borderRadius: 999, background: "#1ECB6A", border: "none", color: "white", fontWeight: 700, cursor: "pointer" }}>
-                  + Agregar B{proveedores.length + 1} hasta B∞
-                </button>
+                <button onClick={addProveedor} style={{ marginTop: 10, padding: "8px 14px", borderRadius: 999, background: "#1ECB6A", border: "none", color: "white", fontWeight: 700, cursor: "pointer" }}>+ Agregar B{proveedores.length + 1} hasta B∞</button>
               </div>
             )}
 
-            {/* PASO 2 - Productos 40/85 */}
             {paso === 2 && (
               <div style={{ marginTop: 16 }}>
                 <h3 style={{ marginBottom: 8 }}>Productos - Ganancia 40% mayor / 85% detal auto</h3>
@@ -353,13 +366,10 @@ export default function Home() {
                     </div>
                   </div>
                 ))}
-                <button onClick={addProducto} style={{ marginTop: 10, padding: "8px 14px", borderRadius: 999, background: "#1ECB6A", border: "none", color: "white", fontWeight: 700, cursor: "pointer" }}>
-                  + Agregar Producto
-                </button>
+                <button onClick={addProducto} style={{ marginTop: 10, padding: "8px 14px", borderRadius: 999, background: "#1ECB6A", border: "none", color: "white", fontWeight: 700, cursor: "pointer" }}>+ Agregar Producto</button>
               </div>
             )}
 
-            {/* PASO 3 - Inventario Maestro */}
             {paso === 3 && (
               <div style={{ marginTop: 16 }}>
                 <h3 style={{ marginBottom: 8 }}>Inventario Maestro - 3 Excels unificados</h3>
@@ -370,9 +380,7 @@ export default function Home() {
                       <th style={{ padding: 8 }}>Total Stock</th>
                       <th style={{ padding: 8 }}>Mayor 40%</th>
                       <th style={{ padding: 8 }}>Detal 85%</th>
-                      {proveedores.map((pr) => (
-                        <th key={pr.id} style={{ padding: 8 }}>{pr.bodega}</th>
-                      ))}
+                      {proveedores.map((pr) => (<th key={pr.id} style={{ padding: 8 }}>{pr.bodega}</th>))}
                     </tr>
                   </thead>
                   <tbody>
@@ -382,9 +390,7 @@ export default function Home() {
                         <td style={{ padding: 8, textAlign: "center", fontWeight: 800 }}>{p.totalStock}</td>
                         <td style={{ padding: 8, textAlign: "center" }}>${p.mayor.toLocaleString("es-CO")}</td>
                         <td style={{ padding: 8, textAlign: "center" }}>${p.detal.toLocaleString("es-CO")}</td>
-                        {proveedores.map((pr) => (
-                          <td key={pr.id} style={{ padding: 8, textAlign: "center" }}>{p.stocks[pr.id] || 0}</td>
-                        ))}
+                        {proveedores.map((pr) => (<td key={pr.id} style={{ padding: 8, textAlign: "center" }}>{p.stocks[pr.id] || 0}</td>))}
                       </tr>
                     ))}
                   </tbody>
@@ -392,29 +398,22 @@ export default function Home() {
               </div>
             )}
 
-            {/* PASO 4 - Link Venta */}
             {paso === 4 && (
               <div style={{ marginTop: 16 }}>
                 <h3 style={{ marginBottom: 8 }}>Link venta automatica ?c=</h3>
-                <button onClick={generarLink} style={{ width: "100%", background: "#0A2640", color: "white", padding: 12, borderRadius: 10, fontWeight: 800, border: "none", cursor: "pointer" }}>
-                  GENERAR LINK CORTO
-                </button>
+                <button onClick={generarLink} style={{ width: "100%", background: "#0A2640", color: "white", padding: 12, borderRadius: 10, fontWeight: 800, border: "none", cursor: "pointer" }}>GENERAR LINK CORTO</button>
                 {linkGen && (
                   <>
                     <div style={{ marginTop: 8, fontSize: 10, wordBreak: "break-all", background: "#F1F5F9", padding: 8, borderRadius: 8 }}>{linkGen}</div>
-                    <button onClick={copiarLink} style={{ marginTop: 8, width: "100%", background: "#1ECB6A", color: "white", padding: 10, borderRadius: 10, border: "none", fontWeight: 700, cursor: "pointer" }}>
-                      {copiado ? "COPIADO!" : "Copiar Link"}
-                    </button>
+                    <button onClick={copiarLink} style={{ marginTop: 8, width: "100%", background: "#1ECB6A", color: "white", padding: 10, borderRadius: 10, border: "none", fontWeight: 700, cursor: "pointer" }}>{copiado ? "COPIADO!" : "Copiar Link"}</button>
                   </>
                 )}
               </div>
             )}
 
-            {/* PASO 5 - Prueba Venta Automatica */}
             {paso === 5 && (
               <div style={{ marginTop: 16 }}>
                 <h3 style={{ marginBottom: 8 }}>Prueba Venta Automatica Maxima</h3>
-                {/* Filtros */}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
                   {["detal", "mayor", "efectivo", "transferencia", "contraentrega"].map((f) => (
                     <button key={f} onClick={() => setFiltro(f)} style={{ padding: "6px 12px", borderRadius: 999, border: "1px solid #E2E8F0", background: filtro === f ? "#1ECB6A" : "white", color: filtro === f ? "white" : "#0A2640", fontSize: 10, cursor: "pointer", textTransform: "capitalize" }}>{f}</button>
@@ -429,25 +428,21 @@ export default function Home() {
                 <div style={{ marginTop: 10, background: "#F8FAFC", padding: 10, borderRadius: 8, fontSize: 12 }}>
                   <b>Carrito:</b> {carrito.length === 0 ? "vacio" : carrito.map((c) => { const pr = productos.find((p) => p.id === c.prodId); return pr.nombre + " x" + c.qty; }).join(", ")}
                 </div>
-                <button onClick={simularVenta} style={{ marginTop: 10, width: "100%", background: "#0A2640", color: "white", padding: 12, borderRadius: 10, fontWeight: 800, border: "none", cursor: "pointer" }}>
-                  SIMULAR VENTA AUTOMATICA
-                </button>
-                {ventaMsg && (
-                  <div style={{ marginTop: 10, background: "#E6FFF3", border: "1px solid #1ECB6A", padding: 12, borderRadius: 10, fontSize: 12, whiteSpace: "pre-wrap" }}>{ventaMsg}</div>
-                )}
+                <button onClick={simularVenta} style={{ marginTop: 10, width: "100%", background: "#0A2640", color: "white", padding: 12, borderRadius: 10, fontWeight: 800, border: "none", cursor: "pointer" }}>SIMULAR VENTA AUTOMATICA</button>
+                {ventaMsg && (<div style={{ marginTop: 10, background: "#E6FFF3", border: "1px solid #1ECB6A", padding: 12, borderRadius: 10, fontSize: 12, whiteSpace: "pre-wrap" }}>{ventaMsg}</div>)}
               </div>
             )}
           </div>
 
-          {/* SIDEBAR - Pago */}
+          {/* SIDEBAR - Checkout */}
           <div style={{ background: "#0A2640", color: "white", borderRadius: 16, padding: 16, height: "fit-content" }}>
-            <div style={{ fontSize: 11, opacity: 0.7 }}>CHECKOUT STOCKOS V17</div>
+            <div style={{ fontSize: 11, opacity: 0.7 }}>CHECKOUT STOCKOS V19</div>
             <div style={{ fontSize: 28, fontWeight: 900 }}>${total.toLocaleString("es-CO")}</div>
             <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>Base $300.000 + {mods.length} adicionales</div>
-            <a href={isClientComplete ? "https://www.paypal.com/paypalme/andreskstllo/" + total : "#"} target="_blank" onClick={(e) => { if (!isClientComplete) { e.preventDefault(); notifyPayment("PayPal"); } }} style={{ display: "block", marginTop: 12, background: "#FFC439", color: "#003087", textAlign: "center", padding: 10, borderRadius: 10, fontWeight: 800, textDecoration: "none", opacity: isClientComplete ? 1 : 0.6 }}>PayPal ${total.toLocaleString("es-CO")}</a>
-            <button disabled={!isClientComplete} onClick={() => notifyPayment("Nequi 3215981307")} style={{ width: "100%", marginTop: 10, background: "#1ECB6A", color: "white", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Ya pagué por Nequi</button>
+            <button disabled={!isClientComplete} onClick={() => procesarPago("PayPal")} style={{ width: "100%", marginTop: 12, background: "#FFC439", color: "#003087", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Paga con Tarjeta Débito/Crédito PayPal</button>
+            <button disabled={!isClientComplete} onClick={() => procesarPago("Nequi 3215981307")} style={{ width: "100%", marginTop: 10, background: "#1ECB6A", color: "white", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Paga con Nequi</button>
             <div style={{ fontSize: 10, marginTop: 5, opacity: 0.8 }}>Nequi: 3215981307</div>
-            <button disabled={!isClientComplete} onClick={() => notifyPayment("Bancolombia 912-510747-93")} style={{ width: "100%", marginTop: 10, background: "white", color: "#0A2640", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Ya pagué por Bancolombia</button>
+            <button disabled={!isClientComplete} onClick={() => procesarPago("Bancolombia 912-510747-93")} style={{ width: "100%", marginTop: 10, background: "white", color: "#0A2640", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Paga con Bancolombia</button>
             <div style={{ fontSize: 10, marginTop: 5, opacity: 0.8 }}>Ahorros 912-510747-93</div>
             <label style={{ display: "block", marginTop: 14, fontSize: 11, opacity: 0.9 }}>Subir comprobante<input type="file" accept="image/*,.pdf" onChange={(e) => setComprobante(e.target.files?.[0] || null)} style={{ display: "block", marginTop: 6, width: "100%" }} /></label>
             {comprobante && <div style={{ marginTop: 5, fontSize: 10, color: "#B7FFD5" }}>{comprobante.name}</div>}
