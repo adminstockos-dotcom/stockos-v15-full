@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 import { BODEGAS_DB } from "../../lib/bodegas-db.js";
 
