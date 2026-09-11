@@ -4,29 +4,30 @@ import { useState, useEffect } from "react";
 
 const BASE = 300000;
 
+const CORE_MODULES = ["Inventario Maestro", "Productos y precios", "Clientes", "Pedidos", "Reportes", "Usuarios", "Soporte", "Panel principal"];
 const MODULOS_22 = [
-  { id: "prov", name: "Proveedor B-Infinito", desc: "B1,B2,B3 hasta B∞", price: 80000 },
-  { id: "pedidos", name: "Pedidos Unificados B1-B∞", desc: "2 B1 +1 B3 = 1 despacho", price: 60000 },
-  { id: "ganancia", name: "Ganancia 40/85 auto", desc: "Calcula precio solo", price: 30000 },
-  { id: "compras", name: "Compras", desc: "Ordena stock", price: 40000 },
-  { id: "multibodega", name: "Multibodega", desc: "Unifica 3 Excels en 1 Maestro", price: 50000 },
-  { id: "link", name: "Link ?c= Base64", desc: "Venta automatica", price: 70000 },
-  { id: "filtros", name: "Filtros Mayor/Detal/Efectivo/Transferencia/Contraentrega", desc: "Filtra link", price: 35000 },
-  { id: "wa", name: "Disparo WA 7AM/2PM", desc: "Reporte auto", price: 80000 },
-  { id: "paypal", name: "PayPal+Nequi+Bancolombia", desc: "paypal.me/andreskstllo", price: 45000 },
-  { id: "factura", name: "Facturacion", desc: "Factura + remision", price: 55000 },
-  { id: "clientes", name: "Clientes", desc: "Historial", price: 30000 },
-  { id: "tallas", name: "Tallas Matricial", desc: "Matriz", price: 25000 },
-  { id: "alertas", name: "Alertas Stock Bajo", desc: "Avisa <5", price: 20000 },
-  { id: "excel", name: "Importa 3 Excels", desc: "A,B,C -> 1 Maestro", price: 70000 },
-  { id: "fotos", name: "Fotos", desc: "Galeria WA", price: 20000 },
-  { id: "devol", name: "Devoluciones", desc: "Control devol", price: 30000 },
-  { id: "conta", name: "Contabilidad", desc: "Costo vs venta", price: 60000 },
-  { id: "rutas", name: "Rutas B1", desc: "Optimiza", price: 35000 },
-  { id: "multiuser", name: "Multiuser Roles", desc: "Vendedor,bodega,admin", price: 75000 },
-  { id: "offline", name: "Offline", desc: "Vende sin internet", price: 40000 },
-  { id: "catalogo", name: "Catalogo PDF", desc: "PDF 40/85", price: 30000 },
-  { id: "api", name: "API Shopify/Woo", desc: "E-commerce", price: 80000 },
+  { id: "prov", name: "Proveedor B-Infinito", price: 30000 },
+  { id: "pedidos", name: "Pedidos Unificados B1-B∞", price: 40000 },
+  { id: "ganancia", name: "Ganancia 40/85", price: 20000 },
+  { id: "compras", name: "Compras", price: 25000 },
+  { id: "multibodega", name: "Multibodega", price: 35000 },
+  { id: "link", name: "Link ?c=", price: 15000 },
+  { id: "filtros", name: "Filtros Mayor/Detal/Efectivo/Transferencia/Contraentrega", price: 20000 },
+  { id: "wa", name: "Disparo WA 7AM/2PM", price: 30000 },
+  { id: "paypal", name: "PayPal/Nequi/Bancolombia", price: 15000 },
+  { id: "factura", name: "Facturación", price: 25000 },
+  { id: "clientes", name: "Clientes", price: 15000 },
+  { id: "tallas", name: "Taller Marcial", price: 20000 },
+  { id: "alertas", name: "Alertas Stock Bajo", price: 15000 },
+  { id: "excel", name: "Importa 3 Excels", price: 20000 },
+  { id: "fotos", name: "Fotos", price: 15000 },
+  { id: "devol", name: "Devoluciones", price: 15000 },
+  { id: "conta", name: "Contabilidad", price: 30000 },
+  { id: "rutas", name: "Bodegas B1", price: 20000 },
+  { id: "multiuser", name: "Multiuser", price: 25000 },
+  { id: "offline", name: "Offline", price: 20000 },
+  { id: "catalogo", name: "Catálogo PDF", price: 15000 },
+  { id: "api", name: "API Shopify/Woo", price: 40000 },
 ];
 
 const toB64 = (str) => {
@@ -50,8 +51,9 @@ const fromB64 = (str) => {
 export default function Home() {
   const [empresa, setEmpresa] = useState({
     nombre: "Maxima Importadores",
-    nit: "900.123.456-7",
-    wa: "3215981307",
+    nit: "14836265-4",
+    direccion: "CL 7 14 57 SAN BOSCO CALI",
+    wa: "3186411851",
     email: "adminstockos@gmail.com",
     ciudad: "Cali",
   });
@@ -66,12 +68,14 @@ export default function Home() {
     { id: "p3", nombre: "Camiseta Pro", costo: 30000, talla: "M", color: "Azul", stocks: { b1: 8, b2: 6, b3: 2 }, cat: "Ropa" },
   ]);
   const [paso, setPaso] = useState(0);
-  const [mods, setMods] = useState(["prov", "ganancia", "pedidos", "link"]);
+  const [mods, setMods] = useState([]);
+  const [comprobante, setComprobante] = useState(null);
   const [linkGen, setLinkGen] = useState("");
   const [carrito, setCarrito] = useState([]);
   const [filtro, setFiltro] = useState("detal");
   const [ventaMsg, setVentaMsg] = useState("");
   const [copiado, setCopiado] = useState(false);
+  const isClientComplete = Boolean(empresa.nombre && empresa.nit && empresa.direccion && empresa.email && empresa.wa && empresa.ciudad);
 
   const total = BASE + mods.reduce((s, id) => s + (MODULOS_22.find((m) => m.id === id)?.price || 0), 0);
 
@@ -145,6 +149,17 @@ export default function Home() {
     });
   };
 
+  const notifyPayment = (medio) => {
+    if (!isClientComplete) {
+      setPaso(0);
+      alert("Completa todos los datos de la empresa antes de pagar.");
+      return;
+    }
+    const modules = mods.map((id) => MODULOS_22.find((m) => m.id === id)?.name).filter(Boolean).join(", ");
+    const message = "STOCKOS V17 - Pago " + medio + "\\nEmpresa: " + empresa.nombre + "\\nNIT: " + empresa.nit + "\\nDirección: " + empresa.direccion + "\\nEmail: " + empresa.email + "\\nWA: " + empresa.wa + "\\nCiudad: " + empresa.ciudad + "\\nMódulos: " + modules + "\\nTotal: $" + total.toLocaleString("es-CO") + "\\nMedio: " + medio;
+    window.open("https://wa.me/573044019899?text=" + encodeURIComponent(message), "_blank");
+  };
+
   const addProveedor = () => {
     const n = proveedores.length + 1;
     setProveedores([...proveedores, { id: "b" + n, nombre: "Proveedor " + String.fromCharCode(65 + proveedores.length) + " - Nueva", bodega: "B" + n, ciudad: "Cali" }]);
@@ -176,10 +191,14 @@ export default function Home() {
     <div style={{ fontFamily: "Arial, sans-serif", background: "#F8FFFE", minHeight: "100vh", color: "#0A2640" }}>
       <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 20px" }}>
         {/* HERO */}
+        <header style={{ background: "white", borderBottom: "1px solid #E2E8F0", margin: "0 -20px", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <img src="/logo.png" height="48" style={{ background: "white", padding: 6, borderRadius: 10 }} />
+          <a href="/admin" style={{ color: "#0A2640", fontSize: 12, fontWeight: 800, textDecoration: "none" }}>ADMIN</a>
+        </header>
         <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: 24, padding: "36px 0 20px" }}>
           <div>
             <div style={{ display: "inline-block", background: "#E6FFF3", color: "#0A7A42", padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800 }}>
-              STOCKOS V16 - VENTA AUTOMATIZADA
+              STOCKOS V17 - VENTA AUTOMATIZADA
             </div>
             <h1 style={{ fontSize: 38, fontWeight: 900, lineHeight: 1.05, marginTop: 12 }}>
               De <span style={{ color: "#1ECB6A" }}>3 Excels desordenados</span> a 1 Inventario Maestro que vende solo.
@@ -222,8 +241,13 @@ export default function Home() {
 
         {/* MODULOS */}
         <div style={{ background: "#F1F5F9", borderRadius: 16, padding: 16 }}>
-          <div style={{ fontWeight: 900, fontSize: 13 }}>BASE DEL PLAN 300.000 $ - 22 modulos totales.</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8, marginTop: 12 }}>
+          <div style={{ fontWeight: 900, fontSize: 13 }}>BASE DEL PLAN $300.000 - 8 módulos incluidos + 22 adicionales.</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginTop: 12 }}>
+            {CORE_MODULES.map((name) => (
+              <label key={name} style={{ background: "#E6FFF3", color: "#0A7A42", border: "1px solid #1ECB6A", borderRadius: 10, padding: 8, fontSize: 10, fontWeight: 800 }}>
+                <input type="checkbox" checked disabled style={{ marginRight: 5 }} />{name}
+              </label>
+            ))}
             {MODULOS_22.map((m) => (
               <label
                 key={m.id}
@@ -280,6 +304,7 @@ export default function Home() {
                 <h3 style={{ marginBottom: 8 }}>Paso 1 - Datos de tu empresa</h3>
                 <input value={empresa.nombre} onChange={(e) => setEmpresa({ ...empresa, nombre: e.target.value })} placeholder="Maxima Importadores" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
                 <input value={empresa.nit} onChange={(e) => setEmpresa({ ...empresa, nit: e.target.value })} placeholder="NIT" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
+                <input value={empresa.direccion} onChange={(e) => setEmpresa({ ...empresa, direccion: e.target.value })} placeholder="Dirección" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
                 <input value={empresa.wa} onChange={(e) => setEmpresa({ ...empresa, wa: e.target.value })} placeholder="WhatsApp" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
                 <input value={empresa.email} onChange={(e) => setEmpresa({ ...empresa, email: e.target.value })} placeholder="Email" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
                 <input value={empresa.ciudad} onChange={(e) => setEmpresa({ ...empresa, ciudad: e.target.value })} placeholder="Ciudad" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
@@ -416,28 +441,23 @@ export default function Home() {
 
           {/* SIDEBAR - Pago */}
           <div style={{ background: "#0A2640", color: "white", borderRadius: 16, padding: 16, height: "fit-content" }}>
-            <div style={{ fontSize: 11, opacity: 0.7 }}>Arma tu STOCKOS $300k base + extras</div>
+            <div style={{ fontSize: 11, opacity: 0.7 }}>CHECKOUT STOCKOS V17</div>
             <div style={{ fontSize: 28, fontWeight: 900 }}>${total.toLocaleString("es-CO")}</div>
-            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>Base ${BASE.toLocaleString("es-CO")} + {mods.length} modulos</div>
-            <a href="https://paypal.me/andreskstllo" target="_blank" style={{ display: "block", marginTop: 12, background: "#FFC439", color: "#003087", textAlign: "center", padding: 10, borderRadius: 10, fontWeight: 800, textDecoration: "none" }}>PayPal paypal.me/andreskstllo</a>
-            <button
-              onClick={() => {
-                const b64 = toB64(JSON.stringify({ empresa, proveedores, productos, mods, total }));
-                window.open("https://wa.me/573215981307?text=" + encodeURIComponent("Hola STOCKOS soy " + empresa.nombre + " Plan $" + total + " Link: " + window.location.origin + "?c=" + b64), "_blank");
-              }}
-              style={{ width: "100%", marginTop: 10, background: "#25D366", color: "white", padding: 12, borderRadius: 10, fontWeight: 800, border: "none", cursor: "pointer" }}
-            >
-              Enviar WA
-            </button>
-            {/* Pagos footer */}
+            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>Base $300.000 + {mods.length} adicionales</div>
+            <a href={isClientComplete ? "https://www.paypal.com/paypalme/andreskstllo/" + total : "#"} target="_blank" onClick={(e) => { if (!isClientComplete) { e.preventDefault(); notifyPayment("PayPal"); } }} style={{ display: "block", marginTop: 12, background: "#FFC439", color: "#003087", textAlign: "center", padding: 10, borderRadius: 10, fontWeight: 800, textDecoration: "none", opacity: isClientComplete ? 1 : 0.6 }}>PayPal ${total.toLocaleString("es-CO")}</a>
+            <button disabled={!isClientComplete} onClick={() => notifyPayment("Nequi 3215981307")} style={{ width: "100%", marginTop: 10, background: "#1ECB6A", color: "white", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Ya pagué por Nequi</button>
+            <div style={{ fontSize: 10, marginTop: 5, opacity: 0.8 }}>Nequi: 3215981307</div>
+            <button disabled={!isClientComplete} onClick={() => notifyPayment("Bancolombia 912-510747-93")} style={{ width: "100%", marginTop: 10, background: "white", color: "#0A2640", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Ya pagué por Bancolombia</button>
+            <div style={{ fontSize: 10, marginTop: 5, opacity: 0.8 }}>Ahorros 912-510747-93</div>
+            <label style={{ display: "block", marginTop: 14, fontSize: 11, opacity: 0.9 }}>Subir comprobante<input type="file" accept="image/*,.pdf" onChange={(e) => setComprobante(e.target.files?.[0] || null)} style={{ display: "block", marginTop: 6, width: "100%" }} /></label>
+            {comprobante && <div style={{ marginTop: 5, fontSize: 10, color: "#B7FFD5" }}>{comprobante.name}</div>}
             <div style={{ marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.2)", paddingTop: 12, fontSize: 10, opacity: 0.8 }}>
               <div style={{ fontWeight: 700, marginBottom: 6 }}>PAGOS:</div>
-              <div>Bancolombia 912-510747-93 Ivan Andres Cadena</div>
-              <div>Nequi 3215981307</div>
-              <div>PayPal paypal.me/andreskstllo</div>
+              <div>Bancolombia 912-510747-93 Ivan Andres Cadena</div><div>Nequi 3215981307</div><div>PayPal paypal.me/andreskstllo</div>
             </div>
           </div>
         </div>
+        <a href="/admin" aria-label="Administración" style={{ position: "fixed", right: 10, bottom: 8, color: "#0A2640", opacity: 0.15, textDecoration: "none", fontWeight: 900 }}>.</a>
       </div>
     </div>
   );
