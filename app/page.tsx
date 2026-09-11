@@ -1,57 +1,464 @@
+// @ts-nocheck
 "use client";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
+
 const BASE = 300000;
-const BASE_MODS = [
-  { id: "dash", name: "Dashboard Real", desc: "Ventas, stock y caja en vivo", func: ["Ventas hoy", "Stock bajo", "Caja", "Rentabilidad"] },
-  { id: "inv", name: "Inventario Maestro", desc: "Tallas, colores, fotos y bodega B1", func: ["Matriz tallas", "Fotos HD", "Bodega B1", "Stock real"] },
-  { id: "pos", name: "Facturación POS + DIAN", desc: "Factura electrónica en 1 clic", func: ["POS", "DIAN", "Ticket", "Cierre caja"] },
-  { id: "clientes", name: "Clientes y Cartera", desc: "Crédito, abonos, recordatorios WA", func: ["Clientes", "Cartera", "Abonos", "Recordatorio WA"] },
-  { id: "compras", name: "Compras Proveedores A/B/C", desc: "Unifica 3 excels con origen", func: ["Proveedor A/B/C", "Costo real", "Ganancia 40%/85%", "Importar Excel"] },
-  { id: "ventas", name: "Ventas y Cotizaciones", desc: "Cotiza, vende, despacha, guía", func: ["Cotización", "Pedido B1", "Guía", "Factura"] },
-  { id: "ganancia", name: "Reportes de Ganancia", desc: "40% mayor / 85% detal real", func: ["Mayor 40%", "Detal 85%", "Por proveedor", "Por ref"] },
-  { id: "link", name: "Link Maestro + WA Auto", desc: "stockos.com/inv + disparo 7AM/2PM", func: ["Link filtrable", "Fotos + precios", "Disparo 7AM/2PM", "Cierra venta"] },
+
+const CORE_MODULES = ["Inventario Maestro", "Productos y precios", "Clientes", "Pedidos", "Reportes", "Usuarios", "Soporte", "Panel principal"];
+const MODULOS_22 = [
+  { id: "prov", name: "Proveedor B-Infinito", price: 30000 },
+  { id: "pedidos", name: "Pedidos Unificados B1-B∞", price: 40000 },
+  { id: "ganancia", name: "Ganancia 40/85", price: 20000 },
+  { id: "compras", name: "Compras", price: 25000 },
+  { id: "multibodega", name: "Multibodega", price: 35000 },
+  { id: "link", name: "Link ?c=", price: 15000 },
+  { id: "filtros", name: "Filtros Mayor/Detal/Efectivo/Transferencia/Contraentrega", price: 20000 },
+  { id: "wa", name: "Disparo WA 7AM/2PM", price: 30000 },
+  { id: "paypal", name: "PayPal/Nequi/Bancolombia", price: 15000 },
+  { id: "factura", name: "Facturación", price: 25000 },
+  { id: "clientes", name: "Clientes", price: 15000 },
+  { id: "tallas", name: "Taller Marcial", price: 20000 },
+  { id: "alertas", name: "Alertas Stock Bajo", price: 15000 },
+  { id: "excel", name: "Importa 3 Excels", price: 20000 },
+  { id: "fotos", name: "Fotos", price: 15000 },
+  { id: "devol", name: "Devoluciones", price: 15000 },
+  { id: "conta", name: "Contabilidad", price: 30000 },
+  { id: "rutas", name: "Bodegas B1", price: 20000 },
+  { id: "multiuser", name: "Multiuser", price: 25000 },
+  { id: "offline", name: "Offline", price: 20000 },
+  { id: "catalogo", name: "Catálogo PDF", price: 15000 },
+  { id: "api", name: "API Shopify/Woo", price: 40000 },
 ];
-const EXTRAS = [
-  { id: "fotos", name: "Fotos y Variantes", price: 30000, desc: "Fotos HD + variantes", func: ["Fotos HD", "Variantes", "Galería"] },
-  { id: "barras", name: "Códigos de Barras", price: 35000, desc: "Pistola, etiquetas, scan", func: ["Scan pistola", "Etiquetas", "Código interno"] },
-  { id: "sucursales", name: "Sucursales B1/B2", price: 60000, desc: "Multi-bodega", func: ["Crear B2", "Transfer B1→B2", "Stock por bodega"] },
-  { id: "crm", name: "CRM Avanzado", price: 45000, desc: "Tags, campañas WA", func: ["Tags cliente", "Campañas WA", "Ranking"] },
-  { id: "ecommerce", name: "E-commerce Pro", price: 70000, desc: "Link con filtros", func: ["Filtro mayor/detal", "Filtro pago", "Link personalizado"] },
-  { id: "usuarios", name: "Usuarios y Roles", price: 40000, desc: "Vendedores, permisos", func: ["Vendedores", "Permisos", "Caja por usuario"] },
-  { id: "api", name: "API Shopify / Woo", price: 80000, desc: "Sync stock y pedidos", func: ["Sync stock", "Sync pedidos", "Webhook"] },
-];
-export default function PageV16Corregido() {
-  const [form, setForm] = useState({ empresa: "MAXIMA IMPORTADORES", nit: "900123456", email: "maxima@test.com", wa: "3044019899" });
-  const [selected, setSelected] = useState<string[]>(["fotos", "sucursales"]);
-  const [expanded, setExpanded] = useState<string>("dash");
-  const [funcOn, setFuncOn] = useState<Record<string, boolean>>({});
-  const [generated, setGenerated] = useState("");
-  const [clienteData, setClienteData] = useState<any>(null);
+
+const toB64 = (str) => {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.btoa(unescape(encodeURIComponent(str)));
+  } catch {
+    return window.btoa(str);
+  }
+};
+
+const fromB64 = (str) => {
+  if (typeof window === "undefined") return "{}";
+  try {
+    return decodeURIComponent(escape(window.atob(str)));
+  } catch {
+    return window.atob(str);
+  }
+};
+
+export default function Home() {
+  const [empresa, setEmpresa] = useState({
+    nombre: "Maxima Importadores",
+    nit: "14836265-4",
+    direccion: "CL 7 14 57 SAN BOSCO CALI",
+    wa: "3186411851",
+    email: "adminstockos@gmail.com",
+    ciudad: "Cali",
+  });
+  const [proveedores, setProveedores] = useState([
+    { id: "b1", nombre: "Proveedor A - Cali Centro", bodega: "B1", ciudad: "Cali" },
+    { id: "b2", nombre: "Proveedor B - Mayorista Bogota", bodega: "B2", ciudad: "Bogota" },
+    { id: "b3", nombre: "Proveedor C - Importador", bodega: "B3", ciudad: "Medellin" },
+  ]);
+  const [productos, setProductos] = useState([
+    { id: "p1", nombre: "Tenis Runner X", costo: 80000, talla: "38", color: "Negro", stocks: { b1: 5, b2: 3, b3: 0 }, cat: "Tenis" },
+    { id: "p2", nombre: "Tenis Runner X", costo: 80000, talla: "39", color: "Blanco", stocks: { b1: 2, b2: 0, b3: 4 }, cat: "Tenis" },
+    { id: "p3", nombre: "Camiseta Pro", costo: 30000, talla: "M", color: "Azul", stocks: { b1: 8, b2: 6, b3: 2 }, cat: "Ropa" },
+  ]);
+  const [paso, setPaso] = useState(0);
+  const [mods, setMods] = useState([]);
+  const [comprobante, setComprobante] = useState(null);
+  const [linkGen, setLinkGen] = useState("");
+  const [carrito, setCarrito] = useState([]);
+  const [filtro, setFiltro] = useState("detal");
+  const [ventaMsg, setVentaMsg] = useState("");
+  const [copiado, setCopiado] = useState(false);
+  const isClientComplete = Boolean(empresa.nombre && empresa.nit && empresa.direccion && empresa.email && empresa.wa && empresa.ciudad);
+
+  const total = BASE + mods.reduce((s, id) => s + (MODULOS_22.find((m) => m.id === id)?.price || 0), 0);
+
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const c = params.get("c");
-    if (c) { try { setClienteData(JSON.parse(decodeURIComponent(escape(atob(c))))); } catch {} }
-    const init: Record<string, boolean> = {};
-    [...BASE_MODS, ...EXTRAS].forEach(m => m.func.forEach(f => init[`${m.id}::${f}`] = true));
-    setFuncOn(init);
+    try {
+      const c = new URLSearchParams(window.location.search).get("c");
+      if (c) {
+        const data = JSON.parse(fromB64(c));
+        if (data.empresa) setEmpresa(data.empresa);
+        if (data.proveedores) setProveedores(data.proveedores);
+        if (data.productos) setProductos(data.productos);
+        if (data.mods) setMods(data.mods);
+      }
+    } catch {}
   }, []);
-  const total = useMemo(() => BASE + selected.reduce((a, id) => a + (EXTRAS.find(x => x.id === id)?.price || 0), 0), [selected]);
-  const handleGenerate = () => {
-    if (!form.empresa || !form.email) { alert("Empresa y email"); return; }
-    const payload = { n: form.empresa, empresa: form.empresa, nit: form.nit, e: form.email, email: form.email, w: form.wa, wa: form.wa, total, mods: [...BASE_MODS.map(m=>m.id), ...selected], ts: Date.now() };
-    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-    try { localStorage.setItem("stockos_last_order", JSON.stringify(payload)); const arr = JSON.parse(localStorage.getItem("stockos_orders") || "[]"); arr.push(payload); localStorage.setItem("stockos_orders", JSON.stringify(arr)); } catch {}
-    setGenerated(`${typeof window !== "undefined" ? window.location.origin : ""}/admin?c=${b64}`);
+
+  const calcMayor = (c) => Math.round(c * 1.4);
+  const calcDetal = (c) => Math.round(c * 1.85);
+
+  const inventarioMaestro = productos.map((p) => {
+    const totalStock = Object.values(p.stocks).reduce((a, b) => a + b, 0);
+    return { ...p, totalStock, mayor: calcMayor(p.costo), detal: calcDetal(p.costo) };
+  });
+
+  const generarLink = () => {
+    const b64 = toB64(JSON.stringify({ empresa, proveedores, productos, mods, total, base: BASE }));
+    setLinkGen(window.location.origin + window.location.pathname + "?c=" + b64);
   };
-  const toggleFunc = (modId: string, fn: string) => setFuncOn(p => ({ ...p, [`${modId}::${fn}`]: !p[`${modId}::${fn}`] }));
+
+  const copiarLink = () => {
+    if (linkGen && typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(linkGen).then(() => {
+        setCopiado(true);
+        setTimeout(() => setCopiado(false), 2000);
+      });
+    }
+  };
+
+  const simularVenta = () => {
+    if (carrito.length === 0) {
+      setVentaMsg("Carrito vacio. Agrega productos para simular venta.");
+      return;
+    }
+    const ciudadBase = empresa.ciudad || "Cali";
+    const lineas = [];
+    for (const item of carrito) {
+      const prod = productos.find((p) => p.id === item.prodId);
+      if (!prod) continue;
+      let rest = item.qty;
+      const parts = [];
+      for (const prov of proveedores) {
+        const stock = prod.stocks[prov.id] || 0;
+        if (stock <= 0) continue;
+        const taken = Math.min(rest, stock);
+        if (taken > 0) {
+          parts.push(taken + " de " + prov.bodega);
+          rest -= taken;
+        }
+        if (rest <= 0) break;
+      }
+      lineas.push("VENTA: " + prod.nombre + " x" + item.qty + " -> " + parts.join(" + ") + " = 1 despacho " + ciudadBase + " OK" + (rest > 0 ? " / FALTAN " + rest : ""));
+    }
+    setVentaMsg(lineas.join("\n"));
+  };
+
+  const addToCarrito = (p) => {
+    setCarrito((prev) => {
+      const ex = prev.find((x) => x.prodId === p.id);
+      if (ex) return prev.map((x) => (x.prodId === p.id ? { ...x, qty: x.qty + 1 } : x));
+      return [...prev, { prodId: p.id, qty: 1 }];
+    });
+  };
+
+  const notifyPayment = (medio) => {
+    if (!isClientComplete) {
+      setPaso(0);
+      alert("Completa todos los datos de la empresa antes de pagar.");
+      return;
+    }
+    const modules = mods.map((id) => MODULOS_22.find((m) => m.id === id)?.name).filter(Boolean).join(", ");
+    const message = "STOCKOS V17 - Pago " + medio + "\\nEmpresa: " + empresa.nombre + "\\nNIT: " + empresa.nit + "\\nDirección: " + empresa.direccion + "\\nEmail: " + empresa.email + "\\nWA: " + empresa.wa + "\\nCiudad: " + empresa.ciudad + "\\nMódulos: " + modules + "\\nTotal: $" + total.toLocaleString("es-CO") + "\\nMedio: " + medio;
+    window.open("https://wa.me/573044019899?text=" + encodeURIComponent(message), "_blank");
+  };
+
+  const addProveedor = () => {
+    const n = proveedores.length + 1;
+    setProveedores([...proveedores, { id: "b" + n, nombre: "Proveedor " + String.fromCharCode(65 + proveedores.length) + " - Nueva", bodega: "B" + n, ciudad: "Cali" }]);
+  };
+
+  const addProducto = () => {
+    const n = productos.length + 1;
+    const stocksInit = {};
+    proveedores.forEach((p) => (stocksInit[p.id] = 0));
+    setProductos([...productos, { id: "p" + n, nombre: "Producto " + n, costo: 50000, talla: "U", color: "Negro", stocks: stocksInit, cat: "General" }]);
+  };
+
+  const updateStock = (prodId, provId, val) => {
+    setProductos(productos.map((p) => (p.id === prodId ? { ...p, stocks: { ...p.stocks, [provId]: parseInt(val) || 0 } } : p)));
+  };
+
+  const productosFiltrados = inventarioMaestro.filter((p) => {
+    if (filtro === "detal") return p.detal > 0;
+    if (filtro === "mayor") return p.mayor > 0;
+    if (filtro === "efectivo") return p.totalStock > 0;
+    if (filtro === "transferencia") return p.totalStock > 0;
+    if (filtro === "contraentrega") return p.totalStock > 0;
+    return true;
+  });
+
+  const tabs = ["Empresa", "Bodegas B∞", "Productos 40/85", "Inv Maestro", "Link Venta", "Prueba Venta"];
+
   return (
-    <div className="min-h-screen bg-[#F6F8FA] text-[#0A2640] antialiased">
-      <nav className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-black/[0.06]"><div className="max-w-[1120px] mx-auto px-6 h-[72px] flex justify-between items-center"><div className="flex items-center gap-3"><div className="h-9 w-9 bg-[#0A2640] rounded-xl flex items-center justify-center font-extrabold text-white">S</div><span className="font-extrabold text-[18px]">STOCKOS</span><span className="text-[10px] bg-[#0A2640]/10 px-2.5 py-1 rounded-full font-bold">V16 CORREGIDO</span></div><button onClick={() => document.getElementById("checkout")?.scrollIntoView({behavior:"smooth"})} className="h-9 px-5 bg-[#1ECB6A] text-[#0A2640] rounded-full font-bold text-[13px]">Activar $300k</button></div></nav>
-      {clienteData && <div className="max-w-[1120px] mx-auto px-6 pt-6"><div className="bg-[#1ECB6A] text-[#0A2640] rounded-2xl p-5 flex justify-between"><div><div className="font-extrabold text-[11px]">CLIENTE ACTIVADO ?c= OK</div><div className="font-bold mt-1">{clienteData.n} - {clienteData.e} - ${clienteData.total?.toLocaleString("es-CO")} - {clienteData.mods?.join(", ")}</div></div><div className="bg-[#0A2640] text-white px-4 py-2 rounded-full text-[11px] font-bold">OK</div></div></div>}
-      <section className="max-w-[1120px] mx-auto px-6 pt-10 pb-12 grid md:grid-cols-[1.2fr_0.8fr] gap-10 items-center"><div><div className="inline-flex bg-[#1ECB6A]/15 border border-[#1ECB6A]/20 text-[11px] font-bold px-4 py-2 rounded-full tracking-widest">V16 CORREGIDO · SIN TALLER MARCIAL · SIN DUPLICADOS</div><h1 className="mt-6 text-[42px] font-extrabold leading-[0.95] tracking-[-0.03em]">Vende 200 pares/día sin excels.<br/><span className="text-[#1ECB6A]">STOCKOS V22 base $300k.</span></h1><p className="mt-4 text-[15px] opacity-60 max-w-[520px]">Mismo diseño V16 (blanco premium #0A2640 #1ECB6A, logo, cuadros). Corregido: 8 verdes + 7 extras, cada módulo desplegable con funciones clicables ON/OFF.</p><div className="mt-7 flex gap-3"><button onClick={() => document.getElementById("checkout")?.scrollIntoView({behavior:"smooth"})} className="h-[48px] px-7 bg-[#0A2640] text-white rounded-full font-bold">Empezar $300k →</button><a href="https://wa.me/573044019899" className="h-[48px] px-7 border rounded-full font-bold flex items-center">WhatsApp</a></div></div><div className="bg-white rounded-[28px] border p-2"><div className="bg-white rounded-[24px] border p-5"><div className="text-[12px] font-bold">DEMO REAL · Máxima</div><div className="mt-3 bg-[#F6F8FA] rounded-xl p-3 text-[11px]">Inventario B1 - 1,240 pares - En vivo</div><div className="mt-3 grid grid-cols-3 gap-2 text-[11px]"><div className="bg-[#0A2640] text-white rounded-xl p-3 text-center">200<br/>pares/día</div><div className="bg-[#1ECB6A]/15 border rounded-xl p-3 text-center">$12.5M<br/>ventas</div><div className="bg-[#F6F8FA] border rounded-xl p-3 text-center">B1→B2<br/>transfer</div></div></div></div></section>
-      <section id="modulos" className="max-w-[1120px] mx-auto px-6 py-12"><h2 className="text-[28px] font-extrabold">Lo que incluye tu base $300.000</h2><p className="text-[13px] opacity-60">8 verdes obligatorios + 7 extras. Sin Taller Marcial. Clic en +Funciones para ON/OFF.</p><div className="mt-6 grid md:grid-cols-2 gap-3">{BASE_MODS.map(m => { const isOpen = expanded === m.id; return (<div key={m.id} className={`bg-white border rounded-2xl overflow-hidden ${isOpen ? 'border-[#1ECB6A]' : 'border-black/5'}`}><div className="p-4 flex justify-between items-center"><div className="flex gap-3 items-center"><div className="w-8 h-8 bg-[#1ECB6A] rounded-full flex items-center justify-center font-extrabold">✓</div><div><div className="font-bold text-[14px]">{m.name}</div><div className="text-[12px] opacity-60">{m.desc}</div></div></div><button onClick={() => setExpanded(isOpen ? "" : m.id)} className="text-[11px] font-bold border rounded-full px-3 py-1.5">{isOpen ? "−" : "+"} Funciones</button></div>{isOpen && <div className="px-4 pb-4 grid grid-cols-2 gap-2">{m.func.map(fn => { const k = `${m.id}::${fn}`; const on = funcOn[k] ?? true; return <button key={fn} onClick={() => toggleFunc(m.id, fn)} className={`text-left text-[11px] font-bold p-2.5 rounded-xl border ${on ? 'bg-[#1ECB6A] border-[#1ECB6A]' : 'bg-[#F6F8FA] border-black/5 opacity-60'}`}>{fn} {on ? "✅" : "⬜"}</button>; })}</div>}</div>); })}</div><div className="mt-8 grid md:grid-cols-2 gap-3">{EXTRAS.map(ex => { const isOpen = expanded === ex.id; const sel = selected.includes(ex.id); return (<div key={ex.id} className={`bg-white border-2 rounded-2xl overflow-hidden ${sel ? 'border-[#1ECB6A] bg-[#1ECB6A]/5' : 'border-black/5'}`}><div className="p-4 flex justify-between items-center"><label className="flex gap-3 items-center cursor-pointer flex-1"><input type="checkbox" checked={sel} onChange={() => setSelected(s => s.includes(ex.id) ? s.filter(x => x !== ex.id) : [...s, ex.id])} className="w-5 h-5" /><div><div className="font-bold text-[14px]">{ex.name} <span className="text-[#1ECB6A]">+${ex.price.toLocaleString("es-CO")}</span></div><div className="text-[12px] opacity-60">{ex.desc}</div></div></label><button onClick={() => setExpanded(isOpen ? "" : ex.id)} className="text-[11px] font-bold border rounded-full px-3 py-1.5 ml-3">{isOpen ? "−" : "+"} Funciones</button></div>{isOpen && <div className="px-4 pb-4 grid grid-cols-3 gap-2 border-t pt-3">{ex.func.map(fn => { const k = `${ex.id}::${fn}`; const on = funcOn[k] ?? sel; return <button key={fn} onClick={() => toggleFunc(ex.id, fn)} className={`text-[11px] font-bold p-2 rounded-xl border text-left ${on ? 'bg-[#0A2640] text-white' : 'bg-white'}`}>{fn} {on ? "✅" : "⬜"}</button>; })}</div>}</div>); })}</div></section>
-      <section id="checkout" className="max-w-[1120px] mx-auto px-6 py-12"><div className="bg-white rounded-[28px] border p-6 md:p-8"><h3 className="text-[26px] font-extrabold">Compra en línea</h3><div className="mt-4 grid gap-3"><input value={form.empresa} onChange={e => setForm({ ...form, empresa: e.target.value })} placeholder="Empresa" className="h-[52px] border rounded-xl px-4 font-bold" /><div className="grid grid-cols-2 gap-3"><input value={form.nit} onChange={e => setForm({ ...form, nit: e.target.value })} placeholder="NIT" className="h-[52px] border rounded-xl px-4" /><input value={form.wa} onChange={e => setForm({ ...form, wa: e.target.value })} placeholder="WhatsApp" className="h-[52px] border rounded-xl px-4" /></div><input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Email" className="h-[52px] border rounded-xl px-4" /></div><div className="mt-6 flex justify-between items-center bg-[#0A2640] text-white rounded-2xl p-5"><div><div className="text-[11px] opacity-70">TOTAL</div><div className="text-[28px] font-extrabold">${total.toLocaleString("es-CO")}</div><div className="text-[11px] opacity-70">Base $300k + {selected.length} extras</div></div><button onClick={handleGenerate} className="h-[48px] px-6 bg-[#1ECB6A] text-[#0A2640] rounded-full font-extrabold">Crear empresa y generar link ?c=</button></div>{generated && <div className="mt-6 bg-[#1ECB6A]/10 border border-[#1ECB6A]/20 rounded-2xl p-4"><div className="font-bold text-[12px]">✅ LINK GENERADO - Mismo diseño V16 que pediste</div><div className="text-[10px] break-all bg-white border p-3 rounded-xl mt-2">{generated}</div><div className="mt-3 flex gap-2"><button onClick={() => navigator.clipboard.writeText(generated)} className="flex-1 h-10 bg-[#0A2640] text-white rounded-full font-bold text-[12px]">Copiar</button><a href={generated} className="flex-1 h-10 bg-[#1ECB6A] text-[#0A2640] rounded-full font-bold text-[12px] flex items-center justify-center">Ir a /admin →</a></div></div>}<div className="mt-8 grid grid-cols-3 gap-3"><div className="border-2 border-[#1ECB6A] rounded-2xl p-4"><div className="text-[10px] font-bold">NEQUI</div><div className="font-mono font-bold">321 598 1307</div></div><div className="border-2 border-[#0A2640] rounded-2xl p-4"><div className="text-[10px] font-bold">BANCOLOMBIA</div><div className="font-mono font-bold text-[14px]">912-510747-93</div></div><div className="border rounded-2xl p-4"><div className="text-[10px] font-bold">PAYPAL</div><div className="font-mono font-bold text-[11px] break-all">andreskstllo@gmail.com</div></div></div></div></section>
-      <footer className="max-w-[1120px] mx-auto px-6 py-10 border-t flex justify-between text-[12px] opacity-60"><div>© 2026 STOCKOS · V16 Corregido · 8 verdes + 7 extras</div><div>MAXIMA IMPORTADORES</div></footer>
+    <div style={{ fontFamily: "Arial, sans-serif", background: "#F8FFFE", minHeight: "100vh", color: "#0A2640" }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 20px" }}>
+        {/* HERO */}
+        <header style={{ background: "white", borderBottom: "1px solid #E2E8F0", margin: "0 -20px", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <img src="/logo.png" height="48" style={{ background: "white", padding: 6, borderRadius: 10 }} />
+          <a href="/admin" style={{ color: "#0A2640", fontSize: 12, fontWeight: 800, textDecoration: "none" }}>ADMIN</a>
+        </header>
+        <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: 24, padding: "36px 0 20px" }}>
+          <div>
+            <div style={{ display: "inline-block", background: "#E6FFF3", color: "#0A7A42", padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800 }}>
+              STOCKOS V17 - VENTA AUTOMATIZADA
+            </div>
+            <h1 style={{ fontSize: 38, fontWeight: 900, lineHeight: 1.05, marginTop: 12 }}>
+              De <span style={{ color: "#1ECB6A" }}>3 Excels desordenados</span> a 1 Inventario Maestro que vende solo.
+            </h1>
+            <p style={{ marginTop: 12, color: "#475569", fontSize: 14, lineHeight: 1.5 }}>
+              Si su empresa tiene un caos y pierde ventas buscando quien tiene el producto que necesita vender, STOCKOS automatiza todo lo que hace manual y vende mas en automatico. 40% mayor / 85% detal, pedidos divididos unificados B1, WA 7AM/2PM.
+            </p>
+            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+              <button onClick={() => setPaso(0)} style={{ background: "#1ECB6A", color: "white", padding: "12px 18px", borderRadius: 999, border: "none", fontWeight: 800, cursor: "pointer" }}>
+                Crear mi empresa
+              </button>
+              <button onClick={generarLink} style={{ background: "white", padding: "12px 18px", borderRadius: 999, border: "1px solid #E2E8F0", fontWeight: 700, cursor: "pointer" }}>
+                Ver link ?c=
+              </button>
+            </div>
+          </div>
+          {/* Inventario Maestro preview */}
+          <div style={{ background: "white", borderRadius: 16, border: "1px solid #E2E8F0", padding: 14 }}>
+            <div style={{ fontWeight: 800, fontSize: 12 }}>Inventario Maestro en vivo - {empresa.nombre}</div>
+            {inventarioMaestro.map((p) => (
+              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", background: "#F8FAFC", padding: "10px", borderRadius: 10, fontSize: 12, marginTop: 8 }}>
+                <div>
+                  <b>{p.nombre}</b> T{p.talla}
+                  <br />
+                  <span style={{ fontSize: 10 }}>
+                    {proveedores.map((pr) => pr.bodega + ":" + (p.stocks[pr.id] || 0)).join(" ")}
+                  </span>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontWeight: 800 }}>{p.totalStock} und</div>
+                  <div>${p.detal.toLocaleString("es-CO")}</div>
+                </div>
+              </div>
+            ))}
+            <div style={{ marginTop: 10, background: "#0A2640", color: "white", borderRadius: 10, padding: 10, fontSize: 11 }}>
+              Total: ${total.toLocaleString("es-CO")} COP - Base ${BASE.toLocaleString("es-CO")}
+            </div>
+          </div>
+        </div>
+
+        {/* MODULOS */}
+        <div style={{ background: "#F1F5F9", borderRadius: 16, padding: 16 }}>
+          <div style={{ fontWeight: 900, fontSize: 13 }}>BASE DEL PLAN $300.000 - 8 módulos incluidos + 22 adicionales.</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginTop: 12 }}>
+            {CORE_MODULES.map((name) => (
+              <label key={name} style={{ background: "#E6FFF3", color: "#0A7A42", border: "1px solid #1ECB6A", borderRadius: 10, padding: 8, fontSize: 10, fontWeight: 800 }}>
+                <input type="checkbox" checked disabled style={{ marginRight: 5 }} />{name}
+              </label>
+            ))}
+            {MODULOS_22.map((m) => (
+              <label
+                key={m.id}
+                style={{
+                  background: mods.includes(m.id) ? "#0A2640" : "white",
+                  color: mods.includes(m.id) ? "white" : "#0A2640",
+                  border: "1px solid #E2E8F0",
+                  borderRadius: 10,
+                  padding: "8px",
+                  fontSize: 10,
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={mods.includes(m.id)}
+                  onChange={() => setMods((prev) => (prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id]))}
+                  style={{ display: "none" }}
+                />
+                <div style={{ fontWeight: 800 }}>{m.name}</div>
+                <div style={{ fontSize: 9 }}>${m.price.toLocaleString("es-CO")}</div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* TABS + PANEL + SIDEBAR */}
+        <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 16, paddingBottom: 40 }}>
+          <div style={{ background: "white", borderRadius: 16, border: "1px solid #E2E8F0", padding: 16 }}>
+            {/* Tabs */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {tabs.map((s, i) => (
+                <button
+                  key={s}
+                  onClick={() => setPaso(i)}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 999,
+                    border: "1px solid #E2E8F0",
+                    background: paso === i ? "#0A2640" : "white",
+                    color: paso === i ? "white" : "#0A2640",
+                    fontSize: 11,
+                    cursor: "pointer",
+                  }}
+                >
+                  {i + 1}. {s}
+                </button>
+              ))}
+            </div>
+
+            {/* PASO 0 - Empresa */}
+            {paso === 0 && (
+              <div style={{ marginTop: 16 }}>
+                <h3 style={{ marginBottom: 8 }}>Paso 1 - Datos de tu empresa</h3>
+                <input value={empresa.nombre} onChange={(e) => setEmpresa({ ...empresa, nombre: e.target.value })} placeholder="Maxima Importadores" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
+                <input value={empresa.nit} onChange={(e) => setEmpresa({ ...empresa, nit: e.target.value })} placeholder="NIT" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
+                <input value={empresa.direccion} onChange={(e) => setEmpresa({ ...empresa, direccion: e.target.value })} placeholder="Dirección" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
+                <input value={empresa.wa} onChange={(e) => setEmpresa({ ...empresa, wa: e.target.value })} placeholder="WhatsApp" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
+                <input value={empresa.email} onChange={(e) => setEmpresa({ ...empresa, email: e.target.value })} placeholder="Email" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
+                <input value={empresa.ciudad} onChange={(e) => setEmpresa({ ...empresa, ciudad: e.target.value })} placeholder="Ciudad" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #E2E8F0", marginTop: 8 }} />
+              </div>
+            )}
+
+            {/* PASO 1 - Bodegas B∞ */}
+            {paso === 1 && (
+              <div style={{ marginTop: 16 }}>
+                <h3 style={{ marginBottom: 8 }}>Bodegas B1 a B-Infinito</h3>
+                {proveedores.map((p) => (
+                  <div key={p.id} style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+                    <span style={{ background: "#0A2640", color: "white", padding: "4px 8px", borderRadius: 6, fontWeight: 800 }}>{p.bodega}</span>
+                    <input value={p.nombre} onChange={(e) => setProveedores(proveedores.map((x) => (x.id === p.id ? { ...x, nombre: e.target.value } : x)))} style={{ flex: 1, padding: 8, borderRadius: 8, border: "1px solid #E2E8F0" }} />
+                    <input value={p.ciudad} onChange={(e) => setProveedores(proveedores.map((x) => (x.id === p.id ? { ...x, ciudad: e.target.value } : x)))} style={{ width: 100, padding: 8, borderRadius: 8, border: "1px solid #E2E8F0" }} />
+                  </div>
+                ))}
+                <button onClick={addProveedor} style={{ marginTop: 10, padding: "8px 14px", borderRadius: 999, background: "#1ECB6A", border: "none", color: "white", fontWeight: 700, cursor: "pointer" }}>
+                  + Agregar B{proveedores.length + 1} hasta B∞
+                </button>
+              </div>
+            )}
+
+            {/* PASO 2 - Productos 40/85 */}
+            {paso === 2 && (
+              <div style={{ marginTop: 16 }}>
+                <h3 style={{ marginBottom: 8 }}>Productos - Ganancia 40% mayor / 85% detal auto</h3>
+                {productos.map((p) => (
+                  <div key={p.id} style={{ background: "#F8FAFC", borderRadius: 10, padding: 10, marginTop: 8 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <input value={p.nombre} onChange={(e) => setProductos(productos.map((x) => (x.id === p.id ? { ...x, nombre: e.target.value } : x)))} style={{ flex: 1, padding: 8, borderRadius: 8, border: "1px solid #E2E8F0" }} />
+                      <input value={p.talla} onChange={(e) => setProductos(productos.map((x) => (x.id === p.id ? { ...x, talla: e.target.value } : x)))} placeholder="Talla" style={{ width: 60, padding: 8, borderRadius: 8, border: "1px solid #E2E8F0" }} />
+                      <input type="number" value={p.costo} onChange={(e) => setProductos(productos.map((x) => (x.id === p.id ? { ...x, costo: parseInt(e.target.value) || 0 } : x)))} placeholder="Costo" style={{ width: 90, padding: 8, borderRadius: 8, border: "1px solid #E2E8F0" }} />
+                    </div>
+                    <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 12 }}>
+                      <span style={{ color: "#0A7A42", fontWeight: 700 }}>Mayor 40%: ${calcMayor(p.costo).toLocaleString("es-CO")}</span>
+                      <span style={{ color: "#1ECB6A", fontWeight: 700 }}>Detal 85%: ${calcDetal(p.costo).toLocaleString("es-CO")}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                      {proveedores.map((pr) => (
+                        <div key={pr.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700 }}>{pr.bodega}:</span>
+                          <input type="number" value={p.stocks[pr.id] || 0} onChange={(e) => updateStock(p.id, pr.id, e.target.value)} style={{ width: 50, padding: 4, borderRadius: 6, border: "1px solid #E2E8F0", fontSize: 11 }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <button onClick={addProducto} style={{ marginTop: 10, padding: "8px 14px", borderRadius: 999, background: "#1ECB6A", border: "none", color: "white", fontWeight: 700, cursor: "pointer" }}>
+                  + Agregar Producto
+                </button>
+              </div>
+            )}
+
+            {/* PASO 3 - Inventario Maestro */}
+            {paso === 3 && (
+              <div style={{ marginTop: 16 }}>
+                <h3 style={{ marginBottom: 8 }}>Inventario Maestro - 3 Excels unificados</h3>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: "#0A2640", color: "white" }}>
+                      <th style={{ padding: 8, textAlign: "left" }}>Producto</th>
+                      <th style={{ padding: 8 }}>Total Stock</th>
+                      <th style={{ padding: 8 }}>Mayor 40%</th>
+                      <th style={{ padding: 8 }}>Detal 85%</th>
+                      {proveedores.map((pr) => (
+                        <th key={pr.id} style={{ padding: 8 }}>{pr.bodega}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inventarioMaestro.map((p) => (
+                      <tr key={p.id} style={{ borderBottom: "1px solid #F1F5F9" }}>
+                        <td style={{ padding: 8 }}>{p.nombre} T{p.talla} {p.color}</td>
+                        <td style={{ padding: 8, textAlign: "center", fontWeight: 800 }}>{p.totalStock}</td>
+                        <td style={{ padding: 8, textAlign: "center" }}>${p.mayor.toLocaleString("es-CO")}</td>
+                        <td style={{ padding: 8, textAlign: "center" }}>${p.detal.toLocaleString("es-CO")}</td>
+                        {proveedores.map((pr) => (
+                          <td key={pr.id} style={{ padding: 8, textAlign: "center" }}>{p.stocks[pr.id] || 0}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* PASO 4 - Link Venta */}
+            {paso === 4 && (
+              <div style={{ marginTop: 16 }}>
+                <h3 style={{ marginBottom: 8 }}>Link venta automatica ?c=</h3>
+                <button onClick={generarLink} style={{ width: "100%", background: "#0A2640", color: "white", padding: 12, borderRadius: 10, fontWeight: 800, border: "none", cursor: "pointer" }}>
+                  GENERAR LINK CORTO
+                </button>
+                {linkGen && (
+                  <>
+                    <div style={{ marginTop: 8, fontSize: 10, wordBreak: "break-all", background: "#F1F5F9", padding: 8, borderRadius: 8 }}>{linkGen}</div>
+                    <button onClick={copiarLink} style={{ marginTop: 8, width: "100%", background: "#1ECB6A", color: "white", padding: 10, borderRadius: 10, border: "none", fontWeight: 700, cursor: "pointer" }}>
+                      {copiado ? "COPIADO!" : "Copiar Link"}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* PASO 5 - Prueba Venta Automatica */}
+            {paso === 5 && (
+              <div style={{ marginTop: 16 }}>
+                <h3 style={{ marginBottom: 8 }}>Prueba Venta Automatica Maxima</h3>
+                {/* Filtros */}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                  {["detal", "mayor", "efectivo", "transferencia", "contraentrega"].map((f) => (
+                    <button key={f} onClick={() => setFiltro(f)} style={{ padding: "6px 12px", borderRadius: 999, border: "1px solid #E2E8F0", background: filtro === f ? "#1ECB6A" : "white", color: filtro === f ? "white" : "#0A2640", fontSize: 10, cursor: "pointer", textTransform: "capitalize" }}>{f}</button>
+                  ))}
+                </div>
+                {productosFiltrados.map((p) => (
+                  <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: 8, borderBottom: "1px solid #F1F5F9", alignItems: "center" }}>
+                    <span style={{ fontSize: 12 }}>{p.nombre} T{p.talla} Stock {p.totalStock} ${p.detal.toLocaleString("es-CO")}</span>
+                    <button onClick={() => addToCarrito(p)} style={{ padding: "4px 10px", borderRadius: 999, background: "#1ECB6A", border: "none", color: "white", fontWeight: 700, cursor: "pointer" }}>+ Agregar</button>
+                  </div>
+                ))}
+                <div style={{ marginTop: 10, background: "#F8FAFC", padding: 10, borderRadius: 8, fontSize: 12 }}>
+                  <b>Carrito:</b> {carrito.length === 0 ? "vacio" : carrito.map((c) => { const pr = productos.find((p) => p.id === c.prodId); return pr.nombre + " x" + c.qty; }).join(", ")}
+                </div>
+                <button onClick={simularVenta} style={{ marginTop: 10, width: "100%", background: "#0A2640", color: "white", padding: 12, borderRadius: 10, fontWeight: 800, border: "none", cursor: "pointer" }}>
+                  SIMULAR VENTA AUTOMATICA
+                </button>
+                {ventaMsg && (
+                  <div style={{ marginTop: 10, background: "#E6FFF3", border: "1px solid #1ECB6A", padding: 12, borderRadius: 10, fontSize: 12, whiteSpace: "pre-wrap" }}>{ventaMsg}</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* SIDEBAR - Pago */}
+          <div style={{ background: "#0A2640", color: "white", borderRadius: 16, padding: 16, height: "fit-content" }}>
+            <div style={{ fontSize: 11, opacity: 0.7 }}>CHECKOUT STOCKOS V17</div>
+            <div style={{ fontSize: 28, fontWeight: 900 }}>${total.toLocaleString("es-CO")}</div>
+            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>Base $300.000 + {mods.length} adicionales</div>
+            <a href={isClientComplete ? "https://www.paypal.com/paypalme/andreskstllo/" + total : "#"} target="_blank" onClick={(e) => { if (!isClientComplete) { e.preventDefault(); notifyPayment("PayPal"); } }} style={{ display: "block", marginTop: 12, background: "#FFC439", color: "#003087", textAlign: "center", padding: 10, borderRadius: 10, fontWeight: 800, textDecoration: "none", opacity: isClientComplete ? 1 : 0.6 }}>PayPal ${total.toLocaleString("es-CO")}</a>
+            <button disabled={!isClientComplete} onClick={() => notifyPayment("Nequi 3215981307")} style={{ width: "100%", marginTop: 10, background: "#1ECB6A", color: "white", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Ya pagué por Nequi</button>
+            <div style={{ fontSize: 10, marginTop: 5, opacity: 0.8 }}>Nequi: 3215981307</div>
+            <button disabled={!isClientComplete} onClick={() => notifyPayment("Bancolombia 912-510747-93")} style={{ width: "100%", marginTop: 10, background: "white", color: "#0A2640", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Ya pagué por Bancolombia</button>
+            <div style={{ fontSize: 10, marginTop: 5, opacity: 0.8 }}>Ahorros 912-510747-93</div>
+            <label style={{ display: "block", marginTop: 14, fontSize: 11, opacity: 0.9 }}>Subir comprobante<input type="file" accept="image/*,.pdf" onChange={(e) => setComprobante(e.target.files?.[0] || null)} style={{ display: "block", marginTop: 6, width: "100%" }} /></label>
+            {comprobante && <div style={{ marginTop: 5, fontSize: 10, color: "#B7FFD5" }}>{comprobante.name}</div>}
+            <div style={{ marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.2)", paddingTop: 12, fontSize: 10, opacity: 0.8 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>PAGOS:</div>
+              <div>Bancolombia 912-510747-93 Ivan Andres Cadena</div><div>Nequi 3215981307</div><div>PayPal paypal.me/andreskstllo</div>
+            </div>
+          </div>
+        </div>
+        <a href="/admin" aria-label="Administración" style={{ position: "fixed", right: 10, bottom: 8, color: "#0A2640", opacity: 0.15, textDecoration: "none", fontWeight: 900 }}>.</a>
+      </div>
     </div>
   );
 }
