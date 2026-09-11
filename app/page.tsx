@@ -92,6 +92,10 @@ export default function Home() {
   const [paso, setPaso] = useState(0);
   const [mods, setMods] = useState([]);
   const [comprobante, setComprobante] = useState(null);
+  const [showComprobanteSection, setShowComprobanteSection] = useState(false);
+  const [showNequiInfo, setShowNequiInfo] = useState(false);
+  const [showBancolombiaInfo, setShowBancolombiaInfo] = useState(false);
+  const [metodoPago, setMetodoPago] = useState("");
   const [linkGen, setLinkGen] = useState("");
   const [carrito, setCarrito] = useState([]);
   const [filtro, setFiltro] = useState("detal");
@@ -194,30 +198,54 @@ export default function Home() {
     });
   };
 
-  const procesarPago = (metodo) => {
+  const iniciarPago = (metodo) => {
     if (!isClientComplete) {
       setPaso(0);
       alert("Completa todos los datos de la empresa antes de pagar.");
       return;
     }
     const modsSeleccionados = mods.map((id) => MODULOS_22.find((m) => m.id === id)?.name || id).filter(Boolean);
-    const order = {
+    if (metodo === "PayPal") {
+      window.open("https://www.paypal.com/paypalme/andreskstllo/" + total, "_blank");
+      setMetodoPago("PayPal Tarjeta");
+    } else if (metodo === "Nequi") {
+      setShowNequiInfo(true);
+      setMetodoPago("Nequi");
+    } else if (metodo === "Bancolombia") {
+      setShowBancolombiaInfo(true);
+      setMetodoPago("Bancolombia");
+    }
+    setShowComprobanteSection(true);
+    localStorage.setItem("stockos_pending_payment", JSON.stringify({ empresa, mods: modsSeleccionados, total, metodo }));
+  };
+
+  const enviarComprobante = () => {
+    const modsSeleccionados = mods.map((id) => MODULOS_22.find((m) => m.id === id)?.name || id).filter(Boolean);
+    const nuevo = {
       id: Date.now(),
       empresa: empresa.nombre,
       nit: empresa.nit,
       dir: empresa.direccion,
-      wa: empresa.wa,
       email: empresa.email,
+      wa: empresa.wa,
       ciudad: empresa.ciudad,
-      mods: mods,
-      modsNames: modsSeleccionados,
+      mods: modsSeleccionados,
       total,
-      metodo,
+      metodo: metodoPago,
       fecha: new Date().toISOString(),
+      comprobante: comprobante?.name || "sin archivo",
     };
-    saveOrder(order);
-    const message = `✅ NUEVO PAGO STOCKOS\nEmpresa: ${empresa.nombre}\nNIT: ${empresa.nit}\nDir: ${empresa.direccion}\nEmail: ${empresa.email}\nWA Cliente: ${empresa.wa}\nCiudad: ${empresa.ciudad}\nMódulos: ${modsSeleccionados.join(", ")}\nTotal: $${total.toLocaleString("es-CO")}\nMedio: ${metodo}\nHora: ${new Date().toLocaleString("es-CO")}\nComprobante: adjunto`;
-    window.open("https://wa.me/573044019899?text=" + encodeURIComponent(message), "_blank");
+    const orders = getOrders();
+    localStorage.setItem("stockos_orders", JSON.stringify([...orders, nuevo]));
+    localStorage.setItem("lastOrder", JSON.stringify(nuevo));
+    const msg = `✅ PAGO STOCKOS - COMPROBANTE ADJUNTO\nEmpresa: ${empresa.nombre}\nNIT: ${empresa.nit}\nDir: ${empresa.direccion}\nEmail: ${empresa.email}\nWA Cliente: ${empresa.wa}\nCiudad: ${empresa.ciudad}\nMódulos: ${modsSeleccionados.join(", ")}\nTotal: ${total.toLocaleString("es-CO")}\nMedio: ${metodoPago}\nComprobante: ${comprobante?.name || "Cliente dice que ya pagó - verificar"}\nHora: ${new Date().toLocaleString("es-CO")}`;
+    window.open("https://wa.me/573044019899?text=" + encodeURIComponent(msg), "_blank");
+    fetch("/api/send-daily-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to: "adminstockos@gmail.com", report: msg }),
+    }).catch(() => {});
+    alert("¡Gracias! Tu comprobante fue enviado a STOCKOS. Te contactaremos en minutos al " + empresa.wa + " con tu link ?c= de acceso. También enviamos copia a adminstockos@gmail.com");
   };
 
   const addProveedor = () => {
@@ -257,7 +285,7 @@ export default function Home() {
         <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: 24, padding: "36px 0 20px" }}>
           <div>
             <div style={{ display: "inline-block", background: "#E6FFF3", color: "#0A7A42", padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800 }}>
-              STOCKOS V19 - VENTA AUTOMATIZADA
+              STOCKOS V20 - VENTA AUTOMATIZADA
             </div>
             <h1 style={{ fontSize: 38, fontWeight: 900, lineHeight: 1.05, marginTop: 12 }}>
               De <span style={{ color: "#1ECB6A" }}>3 Excels desordenados</span> a 1 Inventario Maestro que vende solo.
@@ -436,16 +464,35 @@ export default function Home() {
 
           {/* SIDEBAR - Checkout */}
           <div style={{ background: "#0A2640", color: "white", borderRadius: 16, padding: 16, height: "fit-content" }}>
-            <div style={{ fontSize: 11, opacity: 0.7 }}>CHECKOUT STOCKOS V19</div>
+            <div style={{ fontSize: 11, opacity: 0.7 }}>CHECKOUT STOCKOS V20</div>
             <div style={{ fontSize: 28, fontWeight: 900 }}>${total.toLocaleString("es-CO")}</div>
             <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>Base $300.000 + {mods.length} adicionales</div>
-            <button disabled={!isClientComplete} onClick={() => procesarPago("PayPal")} style={{ width: "100%", marginTop: 12, background: "#FFC439", color: "#003087", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Paga con Tarjeta Débito/Crédito PayPal</button>
-            <button disabled={!isClientComplete} onClick={() => procesarPago("Nequi 3215981307")} style={{ width: "100%", marginTop: 10, background: "#1ECB6A", color: "white", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Paga con Nequi</button>
-            <div style={{ fontSize: 10, marginTop: 5, opacity: 0.8 }}>Nequi: 3215981307</div>
-            <button disabled={!isClientComplete} onClick={() => procesarPago("Bancolombia 912-510747-93")} style={{ width: "100%", marginTop: 10, background: "white", color: "#0A2640", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Paga con Bancolombia</button>
-            <div style={{ fontSize: 10, marginTop: 5, opacity: 0.8 }}>Ahorros 912-510747-93</div>
-            <label style={{ display: "block", marginTop: 14, fontSize: 11, opacity: 0.9 }}>Subir comprobante<input type="file" accept="image/*,.pdf" onChange={(e) => setComprobante(e.target.files?.[0] || null)} style={{ display: "block", marginTop: 6, width: "100%" }} /></label>
-            {comprobante && <div style={{ marginTop: 5, fontSize: 10, color: "#B7FFD5" }}>{comprobante.name}</div>}
+            <div style={{ fontSize: 11, fontWeight: 700, marginTop: 10, opacity: 0.9 }}>Paso 1: Elige cómo pagar</div>
+            <button disabled={!isClientComplete} onClick={() => iniciarPago("PayPal")} style={{ width: "100%", marginTop: 8, background: "#FFC439", color: "#003087", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Paga con Tarjeta Débito/Crédito por PayPal - ${total.toLocaleString("es-CO")}</button>
+            <button disabled={!isClientComplete} onClick={() => iniciarPago("Nequi")} style={{ width: "100%", marginTop: 8, background: "#1ECB6A", color: "white", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Paga con Nequi 3215981307 - ${total.toLocaleString("es-CO")}</button>
+            {showNequiInfo && (
+              <div style={{ background: "#F3E8FF", color: "#1A1A2E", padding: 12, borderRadius: 10, marginTop: 8, fontSize: 12 }}>
+                <b>Número Nequi:</b> 3215981307<br />
+                <b>Total a transferir:</b> ${total.toLocaleString("es-CO")}<br />
+                <div style={{ width: 128, height: 128, background: "white", border: "1px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 8, fontSize: 10, color: "#999" }}>QR Nequi</div>
+              </div>
+            )}
+            <button disabled={!isClientComplete} onClick={() => iniciarPago("Bancolombia")} style={{ width: "100%", marginTop: 8, background: "white", color: "#0A2640", padding: 11, borderRadius: 10, fontWeight: 800, border: "none", cursor: isClientComplete ? "pointer" : "not-allowed", opacity: isClientComplete ? 1 : 0.6 }}>Paga con Bancolombia Ahorros 912-510747-93 - ${total.toLocaleString("es-CO")}</button>
+            {showBancolombiaInfo && (
+              <div style={{ background: "#E8F0FE", color: "#0A2640", padding: 12, borderRadius: 10, marginTop: 8, fontSize: 12 }}>
+                <b>Ahorros:</b> 912-510747-93<br />
+                <b>Total:</b> ${total.toLocaleString("es-CO")}
+              </div>
+            )}
+            {showComprobanteSection && (
+              <div style={{ border: "2px solid #1ECB6A", padding: 16, borderRadius: 12, background: "#F0FDF4", marginTop: 14, color: "#0A2640" }}>
+                <div style={{ fontWeight: 800, fontSize: 14 }}>✅ Paso 2: ¿Ya realizaste el pago por {metodoPago}?</div>
+                <div style={{ fontSize: 12, marginTop: 4 }}>Sube tu comprobante y envíanos la confirmación</div>
+                <input type="file" accept="image/*,application/pdf" onChange={(e) => setComprobante(e.target.files?.[0] || null)} style={{ marginTop: 10, width: "100%", fontSize: 12 }} />
+                <div style={{ fontSize: 11, marginTop: 6 }}>Archivo: {comprobante?.name || "No seleccionado (puedes enviar sin archivo)"}</div>
+                <button onClick={enviarComprobante} style={{ width: "100%", background: "#1ECB6A", color: "white", padding: 14, borderRadius: 10, fontWeight: 800, fontSize: 14, border: "none", marginTop: 12, cursor: "pointer" }}>📤 ENVIAR COMPROBANTE AHORA A STOCKOS (WA 304-401-9899 + adminstockos@gmail.com)</button>
+              </div>
+            )}
             <div style={{ marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.2)", paddingTop: 12, fontSize: 10, opacity: 0.8 }}>
               <div style={{ fontWeight: 700, marginBottom: 6 }}>PAGOS:</div>
               <div>Bancolombia 912-510747-93 Ivan Andres Cadena</div><div>Nequi 3215981307</div><div>PayPal paypal.me/andreskstllo</div>
