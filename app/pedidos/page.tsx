@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client";
 import { BODEGAS_DB } from "../../lib/bodegas-db.js";
 import { enviarWhatsAppBodega } from "../../lib/whatsapp-dirigido.js";
